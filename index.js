@@ -5,8 +5,8 @@ module.exports = Redis;
 
 if (!global.R5) {
   global.R5 = {
-    out: new (require('./Output.js'))('redis')
-  };
+    out: console
+  }
 }
 
 let config = {
@@ -43,7 +43,7 @@ Redis.prototype.connect = function () {
   });
 
   this.client.on('error', function (err) {
-    R5.out.err(`Redis error: ${err}`);
+    R5.out.error(`Redis error: ${err}`);
     _this.ready = false;
     _this.connect();
   });
@@ -53,7 +53,7 @@ Redis.prototype.get = function (key, callback) {
   if (!callback) { callback = function () { }; }
 
   this.client.get(key, function (err, data) {
-    if (err) { R5.out.err(err); }
+    if (err) { R5.out.error(err); }
     callback(err, data);
   });
 };
@@ -79,7 +79,7 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
   }
 
   function handle_data (err, data) {
-    if (err) { R5.out.err(err); }
+    if (err) { R5.out.error(err); }
     callback(err, data);
   }
 };
@@ -88,14 +88,14 @@ Redis.prototype.delete = function (key, callback) {
   if (!callback) { callback = function () { }; }
 
   this.client.del(key, function (err, data) {
-    if (err) { R5.out.err(err); }
+    if (err) { R5.out.error(err); }
     callback(err, data);
   });
 };
 
 Redis.prototype.get_list = function (key, callback) {
   this.client.lrange(key, 0, -1, function (err, res) {
-    if (err) { R5.out.err(err); }
+    if (err) { R5.out.error(err); }
     callback(err, res);
   });
 };
@@ -142,7 +142,7 @@ Redis.prototype.increment = function (key, callback) {
   if (!callback) { callback = function () { }; }
 
   this.client.incr(key, function (err, data) {
-    if (err) { R5.out.err(err); }
+    if (err) { R5.out.error(err); }
     callback(err, data);
   });
 };
@@ -151,7 +151,7 @@ Redis.prototype.decrement = function (key, callback) {
   if (!callback) { callback = function () { }; }
 
   this.client.decr(key, function (err, data) {
-    if (err) { R5.out.err(err); }
+    if (err) { R5.out.error(err); }
     callback(err, data);
   });
 };
@@ -160,7 +160,7 @@ Redis.prototype.get_ttl = function (key, callback) {
   if (!callback) { callback = function () { }; }
 
   this.client.ttl(key, function (err, data) {
-    if (err) { R5.out.err(err); }
+    if (err) { R5.out.error(err); }
     callback(err, data);
   });
 };
@@ -170,6 +170,6 @@ Redis.prototype.get_ttl = function (key, callback) {
 function stringify (value) {
   try { JSON.stringify(value); }
   catch (e) {
-    R5.out.err(`stringify failed at value: \n${value} \n\n with exception: \n${e}`);
+    R5.out.error(`stringify failed at value: \n${value} \n\n with exception: \n${e}`);
   }
 }

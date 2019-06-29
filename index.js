@@ -11,9 +11,9 @@ if (!global.R5) {
 
 let config = {
   db: 0,
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT,
-  pass: process.env.REDIS_PASS
+  host: 'localhost',
+  port: 'root',
+  pass:  ''
 };
 
 // Constructors

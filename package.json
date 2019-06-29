@@ -4,7 +4,7 @@
   "description": "Use the following steps to update and publish the package (https://www.npmjs.com/package/@funnode/redis)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "./node_modules/.bin/mocha test.js"
   },
   "repository": {
     "type": "git",
@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/FunNode/npm-redis#readme",
   "dependencies": {
+    "chai": "^4.2.0",
+    "dotenv": "^8.0.0",
     "redis": "^2.8.0"
   }
 }

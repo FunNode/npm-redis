@@ -6,7 +6,14 @@ var chai = require('chai');
 var expect = chai.expect;
 var redis;
 
-redis = new (require('./index.js'))();
+let config = {
+  db: 0,
+  host: 'localhost',
+  port: 'root',
+  pass: ''
+};
+
+redis = new (require('./index.js'))(config.db, config.host, config.port, config.pass);
 
 function check_no_error (err, callback) {
   expect(err).to.be.a('null');

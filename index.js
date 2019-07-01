@@ -9,16 +9,13 @@ if (!global.R5) {
   }
 }
 
-let config = {
-  db: 0,
-  host: 'localhost',
-  port: 'root',
-  pass:  ''
-};
-
 // Constructors
 
-function Redis () {
+function Redis (db, host, port, pass) {
+  this.db = db;
+  this.host = host;
+  this.port = port;
+  this.pass = pass;
   this.ready = false;
   this.connect();
 }
@@ -30,15 +27,15 @@ Redis.prototype.connect = function () {
   if (this.ready) { return; }
 
   this.client = require('redis').createClient({
-    host: config.host,
-    port: config.port,
-    password: config.pass,
-    db: config.db
+    host: this.host,
+    port: this.port,
+    password: this.pass,
+    db: this.db
   });
 
   let _this = this;
   this.client.on('ready', function () {
-    R5.out.log(`Connected to Redis (db: ${config.db})`);
+    R5.out.log(`Connected to Redis (db: ${this.db})`);
     _this.ready = true;
   });
 

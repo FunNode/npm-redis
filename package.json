@@ -1,6 +1,6 @@
 {
   "name": "@funnode/redis",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Use the following steps to update and publish the package (https://www.npmjs.com/package/@funnode/redis)",
   "main": "index.js",
   "scripts": {
@@ -18,7 +18,6 @@
   "homepage": "https://github.com/FunNode/npm-redis#readme",
   "dependencies": {
     "chai": "^4.2.0",
-    "dotenv": "^8.0.0",
     "redis": "^2.8.0"
   }
 }

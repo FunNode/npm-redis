@@ -11,11 +11,11 @@ if (!global.R5) {
 
 // Constructors
 
-function Redis (db, host, port, pass) {
-  this.db = db;
+function Redis (host, port, pass, db = 0) {
   this.host = host;
   this.port = port;
   this.pass = pass;
+  this.db = db;
   this.ready = false;
   this.connect();
 }

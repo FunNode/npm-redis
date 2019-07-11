@@ -28,10 +28,11 @@ describe('Redis', () => {
   });
 
   describe('Set key value', () => {
-    describe('Set key value without expire time', () => {
+    describe('Without expire time', () => {
       let key = 'color';
       let value = 'red';
       let err, response;
+
       redis.set(key, value, false, (error, data) => {
         err = error;
         response = data;
@@ -47,10 +48,11 @@ describe('Redis', () => {
       });
     });
 
-    describe('Set key value with expire time', () => {
+    describe('With expire time', () => {
       let key = 'hobby';
       let value = 'driving';
       let err, response;
+
       redis.set(key, value, 100, (error, data) => {
         err = error;
         response = data;
@@ -76,12 +78,11 @@ describe('Redis', () => {
       });
     });
 
-    describe('Set key and object value', () => {
+    describe('Object value', () => {
       let key = 'game';
-      let value = {
-        'name': 'spades'
-      };
+      let value = { 'name': 'spades' };
       let err, response;
+
       redis.set(key, value, false, (error, data) => {
         err = error;
         response = data;
@@ -102,6 +103,7 @@ describe('Redis', () => {
   describe('Get key value', () => {
     let key = 'color';
     let err, response;
+
     redis.get(key, (error, data) => {
       err = error;
       response = data;
@@ -121,6 +123,7 @@ describe('Redis', () => {
   describe('Delete key', () => {
     let key = 'color';
     let err, getResponse, deleteResponse;
+
     redis.delete(key, (error, data) => {
       err = error;
       deleteResponse = data;
@@ -148,10 +151,11 @@ describe('Redis', () => {
   });
 
   describe('Set list', () => {
-    describe('Set list without maximum length option', () => {
+    describe('Without maximum length option', () => {
       let key = 'mylist';
       let value1 = 'one';
       let err, response;
+
       redis.set_list(key, value1, false, (error, value, data) => {
         err = error;
         response = value;
@@ -168,10 +172,11 @@ describe('Redis', () => {
       });
     });
 
-    describe('Set list with maximum length option', () => {
+    describe('With maximum length option', () => {
       let key = 'mylist';
       let value2 = 'two';
       let err, resp;
+
       redis.set_list(key, value2, 1, (error, value, data) => {
         err = error;
         resp = value;
@@ -197,6 +202,7 @@ describe('Redis', () => {
   describe('Get list', () => {
     let key = 'mylist';
     let err, response;
+
     redis.get_list(key, (error, data) => {
       err = error;
       response = data;
@@ -218,6 +224,7 @@ describe('Redis', () => {
     let value = 'one';
     let count = 1;
     let err, response;
+
     redis.delete_list(key, value, count, (error, data) => {
       err = error;
       response = data;
@@ -245,6 +252,7 @@ describe('Redis', () => {
     let key = 'myset';
     let value = 'one';
     let err, response;
+
     redis.set_set(key, value, (error, data) => {
       err = error;
       response = data;
@@ -265,6 +273,7 @@ describe('Redis', () => {
   describe('Get set values', () => {
     let key = 'myset';
     let err, response;
+
     redis.get_set(key, (error, data) => {
       err = error;
       response = data;
@@ -285,6 +294,7 @@ describe('Redis', () => {
   describe('Remove random value from set', () => {
     let key = 'myset';
     let err, response;
+
     redis.pop_set(key, (error, data) => {
       err = error;
       response = data;
@@ -305,6 +315,7 @@ describe('Redis', () => {
     let key = 'myset';
     let value = 'one';
     let err, response;
+
     redis.delete_set(key, value, (error, data) => {
       err = error;
       response = data;
@@ -325,6 +336,7 @@ describe('Redis', () => {
     let key = 'age';
     let value = 23;
     let err, response;
+
     redis.set(key, value, false, (error, data) => {
       err = error;
       response = data;
@@ -352,6 +364,8 @@ describe('Redis', () => {
     let err, response;
 
     redis.set(key, value, false, (error, data) => {
+      err = error;
+      response = data;
     });
 
     redis.decrement(key, (error, data) => {

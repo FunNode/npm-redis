@@ -58,12 +58,16 @@ Redis.prototype.connect = function() {
   });
 };
 
-Redis.prototype.get = function(key, callback) {
+Redis.prototype.handleClientOperAction = function(action, key, callback) {
   callbackHandler(callback);
-  this.client.get(key, function(err, data) {
+  this.client[action](key, function(err, data) {
     handleErrlog(err);
     callback(err, data);
   });
+};
+
+Redis.prototype.get = function(key, callback) {
+  this.handleClientOperAction('get', key, callback);
 };
 
 Redis.prototype.set = function(key, value, key_expiration, callback) {
@@ -92,14 +96,7 @@ Redis.prototype.set = function(key, value, key_expiration, callback) {
   }
 };
 
-Redis.prototype.delete = function(key, callback) {
-  callbackHandler(callback);
-
-  this.client.del(key, function(err, data) {
-    handleErrlog(err);
-    callback(err, data);
-  });
-};
+Redis.prototype.delete = this.handleClientOperAction('del', key, callback);
 
 Redis.prototype.get_list = function(key, callback) {
   this.client.lrange(key, 0, -1, function(err, res) {
@@ -150,23 +147,9 @@ Redis.prototype.delete_all = function() {
   });
 };
 
-Redis.prototype.increment = function(key, callback) {
-  callbackHandler(callback);
+Redis.prototype.this.handleClientOperAction('incr', key, callback);
 
-  this.client.incr(key, function(err, data) {
-    handleErrlog(err);
-    callback(err, data);
-  });
-};
-
-Redis.prototype.decrement = function(key, callback) {
-  callbackHandler(callback);
-
-  this.client.decr(key, function(err, data) {
-    handleErrlog(err);
-    callback(err, data);
-  });
-};
+Redis.prototype.decrement = this.handleClientOperAction('decr', key, callback);
 
 Redis.prototype.get_ttl = function(key, callback) {
   callbackHandler(callback);

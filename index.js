@@ -27,6 +27,12 @@ function callbackHandler(callback) {
   callback ? callback : function() {};
 }
 
+function handleErrlog(err) {
+  if (err) {
+    R5.out.error(err);
+  }
+}
+
 Redis.prototype.connect = function() {
   if (this.ready) {
     return;
@@ -55,9 +61,7 @@ Redis.prototype.connect = function() {
 Redis.prototype.get = function(key, callback) {
   callbackHandler(callback);
   this.client.get(key, function(err, data) {
-    if (err) {
-      R5.out.error(err);
-    }
+    handleErrlog(err);
     callback(err, data);
   });
 };
@@ -83,9 +87,7 @@ Redis.prototype.set = function(key, value, key_expiration, callback) {
   }
 
   function handle_data(err, data) {
-    if (err) {
-      R5.out.error(err);
-    }
+    handleErrlog(err);
     callback(err, data);
   }
 };
@@ -94,18 +96,14 @@ Redis.prototype.delete = function(key, callback) {
   callbackHandler(callback);
 
   this.client.del(key, function(err, data) {
-    if (err) {
-      R5.out.error(err);
-    }
+    handleErrlog(err);
     callback(err, data);
   });
 };
 
 Redis.prototype.get_list = function(key, callback) {
   this.client.lrange(key, 0, -1, function(err, res) {
-    if (err) {
-      R5.out.error(err);
-    }
+    handleErrlog(err);
     callback(err, res);
   });
 };
@@ -156,9 +154,7 @@ Redis.prototype.increment = function(key, callback) {
   callbackHandler(callback);
 
   this.client.incr(key, function(err, data) {
-    if (err) {
-      R5.out.error(err);
-    }
+    handleErrlog(err);
     callback(err, data);
   });
 };
@@ -167,9 +163,7 @@ Redis.prototype.decrement = function(key, callback) {
   callbackHandler(callback);
 
   this.client.decr(key, function(err, data) {
-    if (err) {
-      R5.out.error(err);
-    }
+    handleErrlog(err);
     callback(err, data);
   });
 };
@@ -178,9 +172,7 @@ Redis.prototype.get_ttl = function(key, callback) {
   callbackHandler(callback);
 
   this.client.ttl(key, function(err, data) {
-    if (err) {
-      R5.out.error(err);
-    }
+    handleErrlog(err);
     callback(err, data);
   });
 };

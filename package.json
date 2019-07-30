@@ -4,7 +4,7 @@
   "description": "A redis wrapper used by funnode repositories",
   "main": "index.js",
   "scripts": {
-    "test": "./node_modules/.bin/mocha test.js"
+    "test": "./node_modules/.bin/mocha test/**.js"
   },
   "repository": {
     "type": "git",
@@ -16,7 +16,10 @@
     "url": "https://github.com/RaviPatel"
   },
   "contributors": [
-    { "name": "Malik Kamran Abid", "url": "https://github.com/orgs/FunNode/people/malikkamranabid" }
+    {
+      "name": "Malik Kamran Abid",
+      "url": "https://github.com/orgs/FunNode/people/malikkamranabid"
+    }
   ],
   "license": "ISC",
   "dependencies": {

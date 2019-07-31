@@ -158,12 +158,7 @@ Redis.prototype.decrement = function(key, callback) {
 };
 
 Redis.prototype.get_ttl = function(key, callback) {
-  callbackHandler(callback);
-
-  this.client.ttl(key, function(err, data) {
-    handleErrlog(err);
-    callback(err, data);
-  });
+  this.handleClientOperAction('ttl', key, callback);
 };
 
 // Private Methods

@@ -23,11 +23,11 @@ function Redis(host, port, pass, db = 0) {
 // Public Methods
 // TODO: check if this.ready, else reconnect and/or queue?
 
-function doesCallbackExist(callback) {
+function does_callback_exist(callback) {
   callback ? callback : function() {};
 }
 
-function handleErrlog(err) {
+function handle_err_log(err) {
   if (err) {
     R5.out.error(err);
   }
@@ -58,20 +58,20 @@ Redis.prototype.connect = function() {
   });
 };
 
-Redis.prototype.handleClientOperAction = function(action, key, callback) {
-  doesCallbackExist(callback);
+Redis.prototype.handle_client_oper_action = function(action, key, callback) {
+  does_callback_exist(callback);
   this.client[action](key, function(err, data) {
-    handleErrlog(err);
+    handle_err_log(err);
     callback(err, data);
   });
 };
 
 Redis.prototype.get = function(key, callback) {
-  this.handleClientOperAction('get', key, callback);
+  this.handle_client_oper_action('get', key, callback);
 };
 
 Redis.prototype.set = function(key, value, key_expiration, callback) {
-  doesCallbackExist(callback);
+  does_callback_exist(callback);
 
   if (typeof value === 'object') {
     R5.out.log(
@@ -91,18 +91,18 @@ Redis.prototype.set = function(key, value, key_expiration, callback) {
   }
 
   function handle_data(err, data) {
-    handleErrlog(err);
+    handle_err_log(err);
     callback(err, data);
   }
 };
 
 Redis.prototype.delete = function(key, callback) {
-  this.handleClientOperAction('del', key, callback);
+  this.handle_client_oper_action('del', key, callback);
 };
 
 Redis.prototype.get_list = function(key, callback) {
   this.client.lrange(key, 0, -1, function(err, res) {
-    handleErrlog(err);
+    handle_err_log(err);
     callback(err, res);
   });
 };
@@ -150,15 +150,15 @@ Redis.prototype.delete_all = function() {
 };
 
 Redis.prototype.increment = function(key, callback) {
-  this.handleClientOperAction('incr', key, callback);
+  this.handle_client_oper_action('incr', key, callback);
 };
 
 Redis.prototype.decrement = function(key, callback) {
-  this.handleClientOperAction('decr', key, callback);
+  this.handle_client_oper_action('decr', key, callback);
 };
 
 Redis.prototype.get_ttl = function(key, callback) {
-  this.handleClientOperAction('ttl', key, callback);
+  this.handle_client_oper_action('ttl', key, callback);
 };
 
 // Private Methods

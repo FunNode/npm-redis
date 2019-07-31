@@ -1,18 +1,17 @@
-/* eslint-disable no-use-before-define */
-/* eslint-disable  brace-style, camelcase, semi */
+/* eslint-disable  brace-style, camelcase, semi, no-use-before-define */
 /* global R5 */
 
 module.exports = Redis;
 
 if (!global.R5) {
   global.R5 = {
-    out: console,
+    out: console
   };
 }
 
 // Constructors
 
-function Redis(host, port, pass, db = 0) {
+function Redis (host, port, pass, db = 0) {
   this.host = host;
   this.port = port;
   this.pass = pass;
@@ -24,11 +23,11 @@ function Redis(host, port, pass, db = 0) {
 // Public Methods
 // TODO: check if this.ready, else reconnect and/or queue?
 
-function does_callback_exist(callback) {
+function does_callback_exist (callback) {
   return callback || function () {};
 }
 
-function handle_err_log(err) {
+function handle_err_log (err) {
   if (err) {
     R5.out.error(err);
   }
@@ -43,7 +42,7 @@ Redis.prototype.connect = function () {
     host: this.host,
     port: this.port,
     password: this.pass,
-    db: this.db,
+    db: this.db
   });
 
   const _this = this;
@@ -52,7 +51,7 @@ Redis.prototype.connect = function () {
     _this.ready = true;
   });
 
-  this.client.on('error', (err) => {
+  this.client.on('error', err => {
     R5.out.error(`Redis error: ${err}`);
     _this.ready = false;
     _this.connect();
@@ -76,7 +75,7 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
 
   if (typeof value === 'object') {
     R5.out.log(
-      'Passing a string into set is recommended (currently passed in object)',
+      'Passing a string into set is recommended (currently passed in object)'
     );
     value = stringify(value);
   }
@@ -91,7 +90,7 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
     this.client.set(key, value, handle_data);
   }
 
-  function handle_data(err, data) {
+  function handle_data (err, data) {
     handle_err_log(err);
     callback(err, data);
   }
@@ -164,12 +163,12 @@ Redis.prototype.get_ttl = function (key, callback) {
 
 // Private Methods
 
-function stringify(value) {
+function stringify (value) {
   try {
     JSON.stringify(value);
   } catch (e) {
     R5.out.error(
-      `stringify failed at value: \n${value} \n\n with exception: \n${e}`,
+      `stringify failed at value: \n${value} \n\n with exception: \n${e}`
     );
   }
 }

@@ -36,7 +36,7 @@ Redis.prototype.connect = function () {
   });
 
   const _this = this;
-  this.client.on('ready', function () {
+  this.client.on('ready', () => {
     R5.out.log(`Connected to Redis (db: ${this.db})`);
     _this.ready = true;
   });

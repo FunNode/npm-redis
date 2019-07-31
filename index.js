@@ -1,11 +1,12 @@
-/* eslint-disable brace-style, camelcase, semi */
+/* eslint-disable no-use-before-define */
+/* eslint-disable  brace-style, camelcase, semi */
 /* global R5 */
 
 module.exports = Redis;
 
 if (!global.R5) {
   global.R5 = {
-    out: console
+    out: console,
   };
 }
 
@@ -24,7 +25,7 @@ function Redis(host, port, pass, db = 0) {
 // TODO: check if this.ready, else reconnect and/or queue?
 
 function does_callback_exist(callback) {
-  callback ? callback : function() {};
+  return callback || function () {};
 }
 
 function handle_err_log(err) {
@@ -33,7 +34,7 @@ function handle_err_log(err) {
   }
 }
 
-Redis.prototype.connect = function() {
+Redis.prototype.connect = function () {
   if (this.ready) {
     return;
   }
@@ -42,40 +43,40 @@ Redis.prototype.connect = function() {
     host: this.host,
     port: this.port,
     password: this.pass,
-    db: this.db
+    db: this.db,
   });
 
-  let _this = this;
-  this.client.on('ready', function() {
+  const _this = this;
+  this.client.on('ready', function () {
     R5.out.log(`Connected to Redis (db: ${this.db})`);
     _this.ready = true;
   });
 
-  this.client.on('error', function(err) {
+  this.client.on('error', (err) => {
     R5.out.error(`Redis error: ${err}`);
     _this.ready = false;
     _this.connect();
   });
 };
 
-Redis.prototype.handle_client_oper_action = function(action, key, callback) {
+Redis.prototype.handle_client_oper_action = function (action, key, callback) {
   does_callback_exist(callback);
-  this.client[action](key, function(err, data) {
+  this.client[action](key, (err, data) => {
     handle_err_log(err);
     callback(err, data);
   });
 };
 
-Redis.prototype.get = function(key, callback) {
+Redis.prototype.get = function (key, callback) {
   this.handle_client_oper_action('get', key, callback);
 };
 
-Redis.prototype.set = function(key, value, key_expiration, callback) {
+Redis.prototype.set = function (key, value, key_expiration, callback) {
   does_callback_exist(callback);
 
   if (typeof value === 'object') {
     R5.out.log(
-      'Passing a string into set is recommended (currently passed in object)'
+      'Passing a string into set is recommended (currently passed in object)',
     );
     value = stringify(value);
   }
@@ -96,21 +97,21 @@ Redis.prototype.set = function(key, value, key_expiration, callback) {
   }
 };
 
-Redis.prototype.delete = function(key, callback) {
+Redis.prototype.delete = function (key, callback) {
   this.handle_client_oper_action('del', key, callback);
 };
 
-Redis.prototype.get_list = function(key, callback) {
-  this.client.lrange(key, 0, -1, function(err, res) {
+Redis.prototype.get_list = function (key, callback) {
+  this.client.lrange(key, 0, -1, (err, res) => {
     handle_err_log(err);
     callback(err, res);
   });
 };
 
-Redis.prototype.set_list = function(key, value, max_length, callback) {
-  let _this = this;
+Redis.prototype.set_list = function (key, value, max_length, callback) {
+  const _this = this;
 
-  _this.client.llen(key, function(err, res, body) {
+  _this.client.llen(key, (err, res, body) => {
     if (err) {
       return callback(err, res, body);
     }
@@ -123,41 +124,41 @@ Redis.prototype.set_list = function(key, value, max_length, callback) {
   });
 };
 
-Redis.prototype.delete_list = function(key, value, count, callback) {
+Redis.prototype.delete_list = function (key, value, count, callback) {
   this.client.lrem(key, count, value, callback);
 };
 
-Redis.prototype.set_set = function(key, value, callback) {
+Redis.prototype.set_set = function (key, value, callback) {
   this.client.sadd(key, value, callback);
 };
 
-Redis.prototype.get_set = function(key, callback) {
+Redis.prototype.get_set = function (key, callback) {
   this.client.smembers(key, callback);
 };
 
-Redis.prototype.pop_set = function(key, callback) {
+Redis.prototype.pop_set = function (key, callback) {
   this.client.spop(key, callback);
 };
 
-Redis.prototype.delete_set = function(key, value, callback) {
+Redis.prototype.delete_set = function (key, value, callback) {
   this.client.srem(key, value, callback);
 };
 
-Redis.prototype.delete_all = function() {
-  this.client.flushdb(function() {
+Redis.prototype.delete_all = function () {
+  this.client.flushdb(() => {
     R5.out.log('Redis flushed');
   });
 };
 
-Redis.prototype.increment = function(key, callback) {
+Redis.prototype.increment = function (key, callback) {
   this.handle_client_oper_action('incr', key, callback);
 };
 
-Redis.prototype.decrement = function(key, callback) {
+Redis.prototype.decrement = function (key, callback) {
   this.handle_client_oper_action('decr', key, callback);
 };
 
-Redis.prototype.get_ttl = function(key, callback) {
+Redis.prototype.get_ttl = function (key, callback) {
   this.handle_client_oper_action('ttl', key, callback);
 };
 
@@ -168,7 +169,7 @@ function stringify(value) {
     JSON.stringify(value);
   } catch (e) {
     R5.out.error(
-      `stringify failed at value: \n${value} \n\n with exception: \n${e}`
+      `stringify failed at value: \n${value} \n\n with exception: \n${e}`,
     );
   }
 }

@@ -22,8 +22,8 @@ function Redis(host, port, pass, db = 0) {
 
 // Public Methods
 // TODO: check if this.ready, else reconnect and/or queue?
-// create callback func if doesn't exist
-function callbackHandler(callback) {
+
+function doesCallbackExist(callback) {
   callback ? callback : function() {};
 }
 
@@ -59,7 +59,7 @@ Redis.prototype.connect = function() {
 };
 
 Redis.prototype.handleClientOperAction = function(action, key, callback) {
-  callbackHandler(callback);
+  doesCallbackExist(callback);
   this.client[action](key, function(err, data) {
     handleErrlog(err);
     callback(err, data);
@@ -71,7 +71,7 @@ Redis.prototype.get = function(key, callback) {
 };
 
 Redis.prototype.set = function(key, value, key_expiration, callback) {
-  callbackHandler(callback);
+  doesCallbackExist(callback);
 
   if (typeof value === 'object') {
     R5.out.log(

@@ -1,4 +1,4 @@
-/* eslint-disable  brace-style, camelcase, semi, no-use-before-define */
+/* eslint-disable  brace-style, camelcase, semi */
 /* global R5 */
 
 module.exports = Redis;
@@ -22,16 +22,6 @@ function Redis (host, port, pass, db = 0) {
 
 // Public Methods
 // TODO: check if this.ready, else reconnect and/or queue?
-
-function does_callback_exist (callback) {
-  return callback || function () {};
-}
-
-function handle_err_log (err) {
-  if (err) {
-    R5.out.error(err);
-  }
-}
 
 Redis.prototype.connect = function () {
   if (this.ready) {
@@ -170,5 +160,15 @@ function stringify (value) {
     R5.out.error(
       `stringify failed at value: \n${value} \n\n with exception: \n${e}`
     );
+  }
+}
+
+function does_callback_exist (callback) {
+  return callback || function () {};
+}
+
+function handle_err_log (err) {
+  if (err) {
+    R5.out.error(err);
   }
 }

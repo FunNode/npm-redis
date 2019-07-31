@@ -5,7 +5,7 @@ var chai = require('chai');
 var expect = chai.expect;
 var redis;
 
-let config = {
+const config = {
   host: 'localhost',
   port: 'root',
   pass: ''
@@ -15,8 +15,8 @@ redis = new (require('../index.js'))(config.host, config.port, config.pass);
 
 describe('Redis', () => {
   describe('Increment value', () => {
-    let key = 'age';
-    let value = 23;
+    const key = 'age';
+    const value = 23;
     let err, response;
 
     redis.set(key, value, false, (error, data) => {
@@ -41,8 +41,8 @@ describe('Redis', () => {
   });
 
   describe('Decrement value', () => {
-    let key = 'age';
-    let value = 24;
+    const key = 'age';
+    const value = 24;
     let err, response;
 
     redis.set(key, value, false, (error, data) => {

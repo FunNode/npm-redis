@@ -5,7 +5,7 @@ var chai = require('chai');
 var expect = chai.expect;
 var redis;
 
-let config = {
+const config = {
   host: 'localhost',
   port: 'root',
   pass: ''
@@ -13,7 +13,7 @@ let config = {
 
 redis = new (require('../index.js'))(config.host, config.port, config.pass);
 
-function check_no_error(err, callback) {
+function check_no_error (err, callback) {
   expect(err).to.be.a('null');
   callback();
 }
@@ -21,7 +21,7 @@ function check_no_error(err, callback) {
 describe('Redis', () => {
   describe('Connect', () => {
     it('should connect and return no object', done => {
-      let connect = redis.connect();
+      const connect = redis.connect();
       expect(connect).to.be.an('undefined');
       done();
     });
@@ -29,8 +29,8 @@ describe('Redis', () => {
 
   describe('Set key value', () => {
     describe('Without expire time', () => {
-      let key = 'color';
-      let value = 'red';
+      const key = 'color';
+      const value = 'red';
       let err, response;
 
       redis.set(key, value, false, (error, data) => {
@@ -49,8 +49,8 @@ describe('Redis', () => {
     });
 
     describe('With expire time', () => {
-      let key = 'hobby';
-      let value = 'driving';
+      const key = 'hobby';
+      const value = 'driving';
       let err, response;
 
       redis.set(key, value, 100, (error, data) => {
@@ -79,8 +79,8 @@ describe('Redis', () => {
     });
 
     describe('Object value', () => {
-      let key = 'game';
-      let value = { name: 'spades' };
+      const key = 'game';
+      const value = { name: 'spades' };
       let err, response;
 
       redis.set(key, value, false, (error, data) => {
@@ -101,7 +101,7 @@ describe('Redis', () => {
   });
 
   describe('Get key value', () => {
-    let key = 'color';
+    const key = 'color';
     let err, response;
 
     redis.get(key, (error, data) => {
@@ -121,7 +121,7 @@ describe('Redis', () => {
   });
 
   describe('Delete key', () => {
-    let key = 'color';
+    const key = 'color';
     let err, getResponse, deleteResponse;
 
     redis.delete(key, (error, data) => {

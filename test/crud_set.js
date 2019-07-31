@@ -5,7 +5,7 @@ var chai = require('chai');
 var expect = chai.expect;
 var redis;
 
-let config = {
+const config = {
   host: 'localhost',
   port: 'root',
   pass: ''
@@ -15,8 +15,8 @@ redis = new (require('../index.js'))(config.host, config.port, config.pass);
 
 describe('Redis', () => {
   describe('Add values to set', () => {
-    let key = 'myset';
-    let value = 'one';
+    const key = 'myset';
+    const value = 'one';
     let err, response;
 
     redis.set_set(key, value, (error, data) => {
@@ -37,7 +37,7 @@ describe('Redis', () => {
   });
 
   describe('Get set values', () => {
-    let key = 'myset';
+    const key = 'myset';
     let err, response;
 
     redis.get_set(key, (error, data) => {
@@ -58,7 +58,7 @@ describe('Redis', () => {
   });
 
   describe('Remove random value from set', () => {
-    let key = 'myset';
+    const key = 'myset';
     let err, response;
 
     redis.pop_set(key, (error, data) => {
@@ -78,8 +78,8 @@ describe('Redis', () => {
   });
 
   describe('Delete key based value from set', () => {
-    let key = 'myset';
-    let value = 'one';
+    const key = 'myset';
+    const value = 'one';
     let err, response;
 
     redis.delete_set(key, value, (error, data) => {

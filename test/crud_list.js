@@ -5,7 +5,7 @@ var chai = require('chai');
 var expect = chai.expect;
 var redis;
 
-let config = {
+const config = {
   host: 'localhost',
   port: 'root',
   pass: ''
@@ -16,8 +16,8 @@ redis = new (require('../index.js'))(config.host, config.port, config.pass);
 describe('Redis', () => {
   describe('Set list', () => {
     describe('Without maximum length option', () => {
-      let key = 'mylist';
-      let value1 = 'one';
+      const key = 'mylist';
+      const value1 = 'one';
       let err, response;
 
       redis.set_list(key, value1, false, (error, value, data) => {
@@ -37,8 +37,8 @@ describe('Redis', () => {
     });
 
     describe('With maximum length option', () => {
-      let key = 'mylist';
-      let value2 = 'two';
+      const key = 'mylist';
+      const value2 = 'two';
       let err, resp;
 
       redis.set_list(key, value2, 1, (error, value, data) => {
@@ -64,7 +64,7 @@ describe('Redis', () => {
   });
 
   describe('Get list', () => {
-    let key = 'mylist';
+    const key = 'mylist';
     let err, response;
 
     redis.get_list(key, (error, data) => {
@@ -84,9 +84,9 @@ describe('Redis', () => {
   });
 
   describe('Delete value from list', () => {
-    let key = 'mylist';
-    let value = 'one';
-    let count = 1;
+    const key = 'mylist';
+    const value = 'one';
+    const count = 1;
     let err, response;
 
     redis.delete_list(key, value, count, (error, data) => {
@@ -105,7 +105,8 @@ describe('Redis', () => {
     });
 
     it('should not include one', done => {
-      redis.get_list(key, (error, data) => {
+      redis.get_list(key, (err, data) => {
+        expect(err).to.be.a('null');
         expect(data).to.not.include('one');
         done();
       });

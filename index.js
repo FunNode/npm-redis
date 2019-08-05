@@ -49,7 +49,8 @@ Redis.prototype.connect = function () {
 };
 
 Redis.prototype.handle_client_oper_action = function (action, key, callback) {
-  does_callback_exist(callback);
+  callback = does_callback_exist(callback);
+
   this.client[action](key, (err, data) => {
     handle_err_log(err);
     callback(err, data);
@@ -61,7 +62,7 @@ Redis.prototype.get = function (key, callback) {
 };
 
 Redis.prototype.set = function (key, value, key_expiration, callback) {
-  does_callback_exist(callback);
+  callback = does_callback_exist(callback);
 
   if (typeof value === 'object') {
     R5.out.log(

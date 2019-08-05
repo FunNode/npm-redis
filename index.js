@@ -41,7 +41,7 @@ Redis.prototype.connect = function () {
     _this.ready = true;
   });
 
-  this.client.on('error', err => {
+  this.client.on('error', (err) => {
     R5.out.error(`Redis error: ${err}`);
     _this.ready = false;
     _this.connect();

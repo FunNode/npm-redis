@@ -1,4 +1,4 @@
-/* eslint-disable brace-style, camelcase, semi */
+/* eslint-disable camelcase, semi */
 /* global R5 */
 
 module.exports = Redis;
@@ -6,7 +6,7 @@ module.exports = Redis;
 if (!global.R5) {
   global.R5 = {
     out: console
-  }
+  };
 }
 
 // Constructors
@@ -24,7 +24,9 @@ function Redis (host, port, pass, db = 0) {
 // TODO: check if this.ready, else reconnect and/or queue?
 
 Redis.prototype.connect = function () {
-  if (this.ready) { return; }
+  if (this.ready) {
+    return;
+  }
 
   this.client = require('redis').createClient({
     host: this.host,
@@ -33,33 +35,38 @@ Redis.prototype.connect = function () {
     db: this.db
   });
 
-  let _this = this;
-  this.client.on('ready', function () {
+  const _this = this;
+  this.client.on('ready', () => {
     R5.out.log(`Connected to Redis (db: ${this.db})`);
     _this.ready = true;
   });
 
-  this.client.on('error', function (err) {
+  this.client.on('error', (err) => {
     R5.out.error(`Redis error: ${err}`);
     _this.ready = false;
     _this.connect();
   });
 };
 
-Redis.prototype.get = function (key, callback) {
-  if (!callback) { callback = function () { }; }
-
-  this.client.get(key, function (err, data) {
-    if (err) { R5.out.error(err); }
+Redis.prototype.handle_client_oper_action = function (action, key, callback) {
+  does_callback_exist(callback);
+  this.client[action](key, (err, data) => {
+    handle_err_log(err);
     callback(err, data);
   });
 };
 
+Redis.prototype.get = function (key, callback) {
+  this.handle_client_oper_action('get', key, callback);
+};
+
 Redis.prototype.set = function (key, value, key_expiration, callback) {
-  if (!callback) { callback = function () { }; }
+  does_callback_exist(callback);
 
   if (typeof value === 'object') {
-    R5.out.log('Passing a string into set is recommended (currently passed in object)');
+    R5.out.log(
+      'Passing a string into set is recommended (currently passed in object)'
+    );
     value = stringify(value);
   }
 
@@ -76,32 +83,29 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
   }
 
   function handle_data (err, data) {
-    if (err) { R5.out.error(err); }
+    handle_err_log(err);
     callback(err, data);
   }
 };
 
 Redis.prototype.delete = function (key, callback) {
-  if (!callback) { callback = function () { }; }
-
-  this.client.del(key, function (err, data) {
-    if (err) { R5.out.error(err); }
-    callback(err, data);
-  });
+  this.handle_client_oper_action('del', key, callback);
 };
 
 Redis.prototype.get_list = function (key, callback) {
-  this.client.lrange(key, 0, -1, function (err, res) {
-    if (err) { R5.out.error(err); }
+  this.client.lrange(key, 0, -1, (err, res) => {
+    handle_err_log(err);
     callback(err, res);
   });
 };
 
 Redis.prototype.set_list = function (key, value, max_length, callback) {
-  let _this = this;
+  const _this = this;
 
-  _this.client.llen(key, function (err, res, body) {
-    if (err) { return callback(err, res, body); }
+  _this.client.llen(key, (err, res, body) => {
+    if (err) {
+      return callback(err, res, body);
+    }
 
     if (max_length !== false && res >= max_length) {
       _this.client.lpop(key, callback(err, res, body));
@@ -132,41 +136,42 @@ Redis.prototype.delete_set = function (key, value, callback) {
 };
 
 Redis.prototype.delete_all = function () {
-  this.client.flushdb(function () { R5.out.log('Redis flushed'); });
+  this.client.flushdb(() => {
+    R5.out.log('Redis flushed');
+  });
 };
 
 Redis.prototype.increment = function (key, callback) {
-  if (!callback) { callback = function () { }; }
-
-  this.client.incr(key, function (err, data) {
-    if (err) { R5.out.error(err); }
-    callback(err, data);
-  });
+  this.handle_client_oper_action('incr', key, callback);
 };
 
 Redis.prototype.decrement = function (key, callback) {
-  if (!callback) { callback = function () { }; }
-
-  this.client.decr(key, function (err, data) {
-    if (err) { R5.out.error(err); }
-    callback(err, data);
-  });
+  this.handle_client_oper_action('decr', key, callback);
 };
 
 Redis.prototype.get_ttl = function (key, callback) {
-  if (!callback) { callback = function () { }; }
-
-  this.client.ttl(key, function (err, data) {
-    if (err) { R5.out.error(err); }
-    callback(err, data);
-  });
+  this.handle_client_oper_action('ttl', key, callback);
 };
 
 // Private Methods
 
 function stringify (value) {
-  try { JSON.stringify(value); }
+  try {
+    JSON.stringify(value);
+  }
   catch (e) {
-    R5.out.error(`stringify failed at value: \n${value} \n\n with exception: \n${e}`);
+    R5.out.error(
+      `stringify failed at value: \n${value} \n\n with exception: \n${e}`
+    );
+  }
+}
+
+function does_callback_exist (callback) {
+  return callback || function () {};
+}
+
+function handle_err_log (err) {
+  if (err) {
+    R5.out.error(err);
   }
 }

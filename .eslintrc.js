@@ -14,7 +14,7 @@ module.exports = {
     },
     rules: {
         'space-before-function-paren': 'error',
-        indent: ['error', 4],
+        indent: ['error', 2],
         'linebreak-style': ['error', 'unix'],
         quotes: ['error', 'single'],
         semi: ['error', 'always'],

@@ -116,6 +116,24 @@ Redis.prototype.set_list = function (key, value, max_length, callback) {
   });
 };
 
+Redis.prototype.get_zlist = function (key, callback) {
+  this.client.zrange(key, 0, -1, (err, res) => {
+    handle_err_log(err);
+    callback(err, res);
+  });
+};
+
+Redis.prototype.rem_from_zlist = function (key, min_score, max_score, callback) {
+  this.client.zremrangebyscore(key, min_score, max_score, (err, res) => {
+    handle_err_log(err);
+    callback(err, res);
+  });
+};
+
+Redis.prototype.set_zlist = function (key, value, score, callback) {
+  this.client.zadd(key, score, value, callback);
+};
+
 Redis.prototype.delete_list = function (key, value, count, callback) {
   this.client.lrem(key, count, value, callback);
 };

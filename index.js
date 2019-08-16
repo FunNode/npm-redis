@@ -91,7 +91,7 @@ Redis.prototype.delete = function (key, callback) {
 };
 
 Redis.prototype.get_list = function (key, callback) {
-  handle_get_list(this.client.lrange, key, callback);
+  this.handle_get_list('lrange', key, callback);
 };
 
 Redis.prototype.set_list = function (key, value, max_length, callback) {
@@ -115,8 +115,15 @@ Redis.prototype.delete_list = function (key, value, count, callback) {
 };
 
 Redis.prototype.get_zlist = function (key, callback) {
-  handle_get_list(this.client.zrange, key, callback);
+  this.handle_get_list('zrange', key, callback);
 };
+
+Redis.prototype.handle_get_list = function (list_func, key, callback) {
+  this.client[list_func](key, 0, -1, (err, res) => {
+    handle_err_log(err);
+    callback(err, res);
+  });
+}
 
 Redis.prototype.rem_from_zlist = function (key, min_score, max_score, callback) {
   this.client.zremrangebyscore(key, min_score, max_score, (err, res) => {
@@ -188,11 +195,4 @@ function handle_err_log (err) {
   if (err) {
     R5.out.error(err);
   }
-}
-
-function handle_get_list (list_func, key, callback) {
-  list_func(key, 0, -1, (err, res) => {
-    handle_err_log(err);
-    callback(err, res);
-  });
 }

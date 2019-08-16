@@ -71,16 +71,12 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
     value = stringify(value);
   }
 
-  if (key_expiration) {
-    if (value) {
-      this.client.set(key, value, 'EX', key_expiration, handle_data);
-    }
-    else {
-      this.client.setex(key, key_expiration, 'EX', handle_data);
-    }
-  }
-  else {
+  if (!key_expiration) {
     this.client.set(key, value, handle_data);
+  } else if (value) {
+    this.client.set(key, value, 'EX', key_expiration, handle_data);
+  } else {
+    this.client.setex(key, key_expiration, 'EX', handle_data);
   }
 
   function handle_data (err, data) {
@@ -94,10 +90,7 @@ Redis.prototype.delete = function (key, callback) {
 };
 
 Redis.prototype.get_list = function (key, callback) {
-  this.client.lrange(key, 0, -1, (err, res) => {
-    handle_err_log(err);
-    callback(err, res);
-  });
+  this.client.lrange(key, 0, -1, handle_callback(err, res, callback));
 };
 
 Redis.prototype.set_list = function (key, value, max_length, callback) {
@@ -121,17 +114,11 @@ Redis.prototype.delete_list = function (key, value, count, callback) {
 };
 
 Redis.prototype.get_zlist = function (key, callback) {
-  this.client.zrange(key, 0, -1, (err, res) => {
-    handle_err_log(err);
-    callback(err, res);
-  });
+  this.client.zrange(key, 0, -1, handle_callback(err, res, callback));
 };
 
 Redis.prototype.rem_from_zlist = function (key, min_score, max_score, callback) {
-  this.client.zremrangebyscore(key, min_score, max_score, (err, res) => {
-    handle_err_log(err);
-    callback(err, res);
-  });
+  this.client.zremrangebyscore(key, min_score, max_score, handle_callback(err, res, callback));
 };
 
 Redis.prototype.set_zlist = function (key, value, score, callback) {
@@ -197,4 +184,9 @@ function handle_err_log (err) {
   if (err) {
     R5.out.error(err);
   }
+}
+
+function handle_callback (err, res, callback) {
+  handle_err_log(err);
+  callback(err, res);
 }

@@ -73,7 +73,8 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
 
   if (!key_expiration) {
     this.client.set(key, value, handle_data);
-  } else if (value) {
+  }
+  else if (value) {
     this.client.set(key, value, 'EX', key_expiration, handle_data);
   }
   else {
@@ -123,7 +124,7 @@ Redis.prototype.handle_get_list = function (list_func, key, callback) {
     handle_err_log(err);
     callback(err, res);
   });
-}
+};
 
 Redis.prototype.rem_from_zlist = function (key, min_score, max_score, callback) {
   this.client.zremrangebyscore(key, min_score, max_score, (err, res) => {

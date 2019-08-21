@@ -15,6 +15,9 @@
     "email": "ravi@funnode.com",
     "url": "https://github.com/RaviPatel"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
   "contributors": [
     {
       "name": "Malik Kamran Abid",

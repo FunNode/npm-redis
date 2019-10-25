@@ -97,4 +97,40 @@ describe('Redis', () => {
       done();
     });
   });
+
+  describe('Set key with error: EX value is not an integer', () => {
+    const key = 'myset';
+    const value = 'one';
+    let err, response;
+
+    redis.set(key, value, 'one', (error, data) => {
+      err = error;
+      response = data;
+    });
+
+    it('should not return error', done => {
+      expect(err).to.be.null;
+      done();
+    });
+
+  });
+
+  describe('Set key with error: stringify', () => {
+    const key = 'myobj';
+    let myobj = {};
+    myobj.a = { b : myobj };
+    let err, response;
+
+    redis.set(key, myobj, false, (error, data) => {
+      err = error;
+      response = data;
+    });
+
+    it('should not return error', done => {
+      expect(err).to.be.null;
+      done();
+    });
+
+  });
+
 });

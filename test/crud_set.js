@@ -112,13 +112,12 @@ describe('Redis', () => {
       expect(err).to.be.null;
       done();
     });
-
   });
 
   describe('Set key with error: stringify', () => {
     const key = 'myobj';
-    let myobj = {};
-    myobj.a = { b : myobj };
+    const myobj = {};
+    myobj.a = { b: myobj };
     let err, response;
 
     redis.set(key, myobj, false, (error, data) => {
@@ -130,7 +129,5 @@ describe('Redis', () => {
       expect(err).to.be.null;
       done();
     });
-
   });
-
 });

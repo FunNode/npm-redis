@@ -71,13 +71,11 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
     value = stringify(value);
   }
 
-  if (!key_expiration || typeof key_expiration !== 'number') {
+  if (!key_expiration || typeof(key_expiration) !== 'number') {
     this.client.set(key, value, handle_data);
-  }
-  else if (value) {
+  } else if (value) {
     this.client.set(key, value, 'EX', key_expiration, handle_data);
-  }
-  else {
+  } else {
     this.client.setex(key, key_expiration, 'EX', handle_data);
   }
 
@@ -134,7 +132,7 @@ Redis.prototype.rem_from_zlist = function (key, min_score, max_score, callback) 
 };
 
 Redis.prototype.set_zlist = function (key, value, score, callback) {
-  let args = [ key, score, value ];
+  const args = [key, score, value];
   this.client.zadd(args, callback);
 };
 
@@ -181,8 +179,7 @@ Redis.prototype.get_ttl = function (key, callback) {
 function stringify (value) {
   try {
     JSON.stringify(value);
-  }
-  catch (e) {
+  } catch (e) {
     R5.out.error(
       `stringify failed at value: \n${value} \n\n with exception: \n${e}`
     );

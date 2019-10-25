@@ -71,7 +71,7 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
     value = stringify(value);
   }
 
-  if (!key_expiration || typeof(key_expiration) !== 'number') {
+  if (!key_expiration || typeof (key_expiration) !== 'number') {
     this.client.set(key, value, handle_data);
   } else if (value) {
     this.client.set(key, value, 'EX', key_expiration, handle_data);
@@ -132,8 +132,7 @@ Redis.prototype.rem_from_zlist = function (key, min_score, max_score, callback) 
 };
 
 Redis.prototype.set_zlist = function (key, value, score, callback) {
-  const args = [key, score, value];
-  this.client.zadd(args, callback);
+  this.client.zadd(key, score, value, callback);
 };
 
 Redis.prototype.delete_zlist = function (key, value, callback) {

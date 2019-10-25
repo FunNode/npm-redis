@@ -16,7 +16,7 @@ redis = new (require('../index.js'))(config.host, config.port, config.pass);
 describe('Redis', () => {
   describe('Set zlist', () => {
     describe('With 1 element', () => {
-      const key = 'myzlist';
+      const key = 'zlist';
       const value1 = 'one';
       const score = 1;
 
@@ -40,7 +40,7 @@ describe('Redis', () => {
   });
 
   describe('Delete value from zlist', () => {
-    const key = 'myzlist';
+    const key = 'zlist';
     const value = 'one';
     let err, response;
 

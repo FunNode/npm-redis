@@ -13,8 +13,8 @@ jobs:
       - uses: paambaati/codeclimate-action@v2.2.6
         with:
           node-version: 12
+          coverageCommand: npm coverage
       - run: npm ci
-      - run: npm coverage
       - run: npm test
         env:
           CC_TEST_REPORTER_ID: ${{secrets.cc_reporter_id}}

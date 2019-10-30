@@ -67,6 +67,33 @@ describe('Redis', () => {
     });
   });
 
+  describe('Get ttl', () => {
+    const key = 'ttl';
+    const value = 10;
+    let err, response;
+
+    redis.set(key, value, false, (error, data) => {
+      err = error;
+      response = data;
+    });
+
+    redis.get_ttl(key, (error, data) => {
+      err = error;
+      response = data;
+    });
+
+    it('should not return error', done => {
+      expect(err).to.be.a('null');
+      done();
+    });
+
+    it('should return time to live equals -1', done => {
+      expect(response).to.be.a('number');
+      expect(response).to.equal(-1);
+      done();
+    });
+  });
+
   describe('Delete all keys of current DB', () => {
     redis.delete_all();
 

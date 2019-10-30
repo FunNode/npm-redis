@@ -71,13 +71,11 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
     value = stringify(value);
   }
 
-  if (!key_expiration) {
+  if (!key_expiration || typeof (key_expiration) !== 'number') {
     this.client.set(key, value, handle_data);
-  }
-  else if (value) {
+  } else if (value) {
     this.client.set(key, value, 'EX', key_expiration, handle_data);
-  }
-  else {
+  } else {
     this.client.setex(key, key_expiration, 'EX', handle_data);
   }
 
@@ -180,8 +178,7 @@ Redis.prototype.get_ttl = function (key, callback) {
 function stringify (value) {
   try {
     JSON.stringify(value);
-  }
-  catch (e) {
+  } catch (e) {
     R5.out.error(
       `stringify failed at value: \n${value} \n\n with exception: \n${e}`
     );

@@ -1,6 +1,9 @@
-name: Node.js Package
+name: npm package
 
-on: push
+on:
+  push:
+    branches:
+      - master
 
 jobs:
   build:
@@ -8,14 +11,15 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - uses: actions/setup-node@v1
-      - uses: paambaati/codeclimate-action@v2.2.6
         with:
           node-version: 12
-          coverageCommand: npm coverage
       - run: npm ci
-      - run: npm test
+      - run: npm run test
+      - uses: paambaati/codeclimate-action@v2.2.6
         env:
           CC_TEST_REPORTER_ID: ${{secrets.cc_reporter_id}}
+        with:
+          coverageCommand: npm run coverage
 
   publish-npm:
     needs: build
@@ -37,7 +41,6 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - uses: actions/setup-node@v1
-      - uses: paambaati/codeclimate-action@v2.2.6
         with:
           node-version: 12
           registry-url: https://npm.pkg.github.com/

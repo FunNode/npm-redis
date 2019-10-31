@@ -23,11 +23,10 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 12
-      - name: NPM Install
       - run: npm ci
-      - name: Run Test
-      env:
-        REDIS_PORT: ${{ job.services.redis.ports[6379] }}
+      - run: npm run test
+        env:
+          REDIS_PORT: ${{ job.services.redis.ports[6379] }}
       - uses: paambaati/codeclimate-action@v2.2.6
         env:
           CC_TEST_REPORTER_ID: ${{secrets.cc_reporter_id}}

@@ -3,15 +3,8 @@
 
 var chai = require('chai');
 var expect = chai.expect;
-var redis;
-
-const config = {
-  host: 'localhost',
-  port: 'root',
-  pass: ''
-};
-
-redis = new (require('../index.js'))(config.host, config.port, config.pass);
+var config = require('./helper');
+var redis = new (require('../index.js'))(config.host, config.port, config.pass);
 
 describe('Redis', () => {
   describe('Set list', () => {

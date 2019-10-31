@@ -24,6 +24,8 @@ jobs:
         with:
           node-version: 12
       - run: npm ci
+      env:
+        REDIS_PORT: ${{ job.services.redis.ports[6379] }}
       - run: npm run test
       - uses: paambaati/codeclimate-action@v2.2.6
         env:

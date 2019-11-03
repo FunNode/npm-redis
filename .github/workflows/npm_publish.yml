@@ -27,7 +27,7 @@ jobs:
       - run: npm run test
         env:
           REDIS_PORT: ${{ job.services.redis.ports[6379] }}
-      - uses: paambaati/codeclimate-action@v2.2.6
+      - uses: paambaati/codeclimate-action@v2.3.0
         env:
           CC_TEST_REPORTER_ID: ${{secrets.cc_reporter_id}}
         with:

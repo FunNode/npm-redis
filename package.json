@@ -4,8 +4,9 @@
   "description": "A redis wrapper used by funnode repositories",
   "main": "index.js",
   "scripts": {
-    "test": "./node_modules/.bin/mocha test/*.js --timeout 2000",
-    "coverage": "./node_modules/.bin/nyc --all npm run test"
+    "test:dev": "REDIS_PORT=6379 ./node_modules/.bin/mocha test/*.js --timeout 2000 --exit",
+    "test": "./node_modules/.bin/mocha test/*.js --timeout 2000 --exit",
+    "coverage": "./node_modules/.bin/nyc --reporter=lcov --reporter=text-lcov --report-dir=coverage npm run test"
   },
   "repository": {
     "type": "git",

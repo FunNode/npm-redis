@@ -6,7 +6,7 @@
   "scripts": {
     "test:dev": "REDIS_PORT=6379 ./node_modules/.bin/mocha test/*.js --timeout 2000 --exit",
     "test": "./node_modules/.bin/mocha test/*.js --timeout 2000 --exit",
-    "coverage": "./node_modules/.bin/nyc --all npm run test"
+    "coverage": "./node_modules/.bin/nyc --reporter=lcov --reporter=text-lcov --reporter=text --report-dir=test-reports npm run test"
   },
   "repository": {
     "type": "git",

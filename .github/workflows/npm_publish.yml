@@ -30,6 +30,7 @@ jobs:
       - uses: paambaati/codeclimate-action@v2.3.0
         env:
           CC_TEST_REPORTER_ID: ${{secrets.cc_reporter_id}}
+          REDIS_PORT: ${{ job.services.redis.ports[6379] }}
         with:
           coverageCommand: npm run coverage
   publish-npm:

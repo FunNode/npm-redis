@@ -20,5 +20,13 @@ module.exports = {
     quotes: ['error', 'single'],
     semi: ['error', 'always'],
     'brace-style': ['error', 'stroustrup']
-  }
+  },
+  overrides: [
+    {
+      files: ["*.test.js"],
+      rules: {
+        "no-unused-expressions": "off"
+      }
+    }
+  ]
 };

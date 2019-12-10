@@ -1,4 +1,4 @@
-/* eslint-disable camelcase, semi */
+/* eslint-disable camelcase */
 /* global R5 */
 
 module.exports = Redis;
@@ -9,6 +9,8 @@ if (!global.R5) {
   };
 }
 
+const redis = require('async-redis');
+
 // Constructors
 
 function Redis (host, port, pass, db = 0) {
@@ -17,18 +19,17 @@ function Redis (host, port, pass, db = 0) {
   this.pass = pass;
   this.db = db;
   this.ready = false;
-  this.connect();
 }
 
 // Public Methods
 // TODO: check if this.ready, else reconnect and/or queue?
 
-Redis.prototype.connect = function () {
+Redis.prototype.connect = async function () {
   if (this.ready) {
     return;
   }
 
-  this.client = require('redis').createClient({
+  this.client = await redis.createClient({
     host: this.host,
     port: this.port,
     password: this.pass,
@@ -48,22 +49,19 @@ Redis.prototype.connect = function () {
   });
 };
 
-Redis.prototype.handle_client_oper_action = function (action, key, callback) {
-  callback = does_callback_exist(callback);
-
-  this.client[action](key, (err, data) => {
-    handle_err_log(err);
-    callback(err, data);
-  });
+Redis.prototype.disconnect = async function () {
+  return this.client.quit();
 };
 
-Redis.prototype.get = function (key, callback) {
-  this.handle_client_oper_action('get', key, callback);
+Redis.prototype.handle_client_oper_action = async function (action, key) {
+  return tryExecuteAndLogError(this.client[action](key));
 };
 
-Redis.prototype.set = function (key, value, key_expiration, callback) {
-  callback = does_callback_exist(callback);
+Redis.prototype.get = async function (key) {
+  return this.handle_client_oper_action('get', key);
+};
 
+Redis.prototype.set = async function (key, value, key_expiration) {
   if (typeof value === 'object') {
     R5.out.log(
       'Passing a string into set is recommended (currently passed in object)'
@@ -71,126 +69,119 @@ Redis.prototype.set = function (key, value, key_expiration, callback) {
     value = stringify(value);
   }
 
+  let promise;
   if (!key_expiration || typeof (key_expiration) !== 'number') {
-    this.client.set(key, value, handle_data);
-  } else if (value) {
-    this.client.set(key, value, 'EX', key_expiration, handle_data);
-  } else {
-    this.client.setex(key, key_expiration, 'EX', handle_data);
+    promise = this.client.set(key, value);
+  }
+  else if (value) {
+    promise = this.client.set(key, value, 'EX', key_expiration);
+  }
+  else {
+    promise = this.client.expire(key, key_expiration);
   }
 
-  function handle_data (err, data) {
-    handle_err_log(err);
-    callback(err, data);
-  }
+  return tryExecuteAndLogError(promise);
 };
 
-Redis.prototype.delete = function (key, callback) {
-  this.handle_client_oper_action('del', key, callback);
+Redis.prototype.delete = async function (key) {
+  return this.handle_client_oper_action('del', key);
 };
 
-Redis.prototype.get_list = function (key, callback) {
-  this.handle_get_list('lrange', key, callback);
+Redis.prototype.get_list = async function (key) {
+  return this.handle_get_list('lrange', key);
 };
 
-Redis.prototype.set_list = function (key, value, max_length, callback) {
-  const _this = this;
-
-  _this.client.llen(key, (err, res, body) => {
-    if (err) {
-      return callback(err, res, body);
+Redis.prototype.set_list = async function (key, value, max_length) {
+  const setList = async () => {
+    if (max_length) {
+      const length = await this.client.llen(key);
+      if (length >= max_length) {
+        await this.client.lpop(key);
+      }
     }
-
-    if (max_length !== false && res >= max_length) {
-      _this.client.lpop(key, callback(err, res, body));
-    }
-
-    _this.client.rpush(key, value, callback(err, res, body));
-  });
+    const data = await this.client.rpush(key, value);
+    return data;
+  };
+  return tryExecuteAndLogError(setList());
 };
 
-Redis.prototype.delete_list = function (key, value, count, callback) {
-  this.client.lrem(key, count, value, callback);
+Redis.prototype.delete_list = async function (key, value, count) {
+  return this.client.lrem(key, count, value);
 };
 
-Redis.prototype.get_zlist = function (key, callback) {
-  this.handle_get_list('zrange', key, callback);
+Redis.prototype.get_zlist = async function (key) {
+  return this.handle_get_list('zrange', key);
 };
 
-Redis.prototype.handle_get_list = function (list_func, key, callback) {
-  this.client[list_func](key, 0, -1, (err, res) => {
-    handle_err_log(err);
-    callback(err, res);
-  });
+Redis.prototype.handle_get_list = async function (list_func, key) {
+  return tryExecuteAndLogError(this.client[list_func](key, 0, -1));
 };
 
-Redis.prototype.rem_from_zlist = function (key, min_score, max_score, callback) {
-  this.client.zremrangebyscore(key, min_score, max_score, (err, res) => {
-    handle_err_log(err);
-    callback(err, res);
-  });
+Redis.prototype.rem_from_zlist = async function (key, min_score, max_score) {
+  return tryExecuteAndLogError(this.client.zremrangebyscore(key, min_score, max_score));
 };
 
-Redis.prototype.set_zlist = function (key, value, score, callback) {
-  this.client.zadd(key, score, value, callback);
+Redis.prototype.set_zlist = async function (key, value, score) {
+  return this.client.zadd(key, score, value);
 };
 
-Redis.prototype.delete_zlist = function (key, value, callback) {
-  this.client.zrem(key, value, callback);
+Redis.prototype.delete_zlist = async function (key, value) {
+  return this.client.zrem(key, value);
 };
 
-Redis.prototype.set_set = function (key, value, callback) {
-  this.client.sadd(key, value, callback);
+Redis.prototype.set_set = async function (key, value) {
+  return this.client.sadd(key, value);
 };
 
-Redis.prototype.get_set = function (key, callback) {
-  this.client.smembers(key, callback);
+Redis.prototype.get_set = async function (key) {
+  return this.client.smembers(key);
 };
 
-Redis.prototype.pop_set = function (key, callback) {
-  this.client.spop(key, callback);
+Redis.prototype.pop_set = async function (key) {
+  return this.client.spop(key);
 };
 
-Redis.prototype.delete_set = function (key, value, callback) {
-  this.client.srem(key, value, callback);
+Redis.prototype.delete_set = async function (key, value) {
+  return this.client.srem(key, value);
 };
 
-Redis.prototype.delete_all = function () {
-  this.client.flushdb(() => {
-    R5.out.log('Redis flushed');
-  });
+Redis.prototype.delete_all = async function () {
+  await this.client.flushdb();
+  R5.out.log('Redis flushed');
 };
 
-Redis.prototype.increment = function (key, callback) {
-  this.handle_client_oper_action('incr', key, callback);
+Redis.prototype.increment = async function (key) {
+  return this.handle_client_oper_action('incr', key);
 };
 
-Redis.prototype.decrement = function (key, callback) {
-  this.handle_client_oper_action('decr', key, callback);
+Redis.prototype.decrement = async function (key) {
+  return this.handle_client_oper_action('decr', key);
 };
 
-Redis.prototype.get_ttl = function (key, callback) {
-  this.handle_client_oper_action('ttl', key, callback);
+Redis.prototype.get_ttl = async function (key) {
+  return this.handle_client_oper_action('ttl', key);
 };
 
 // Private Methods
 
 function stringify (value) {
   try {
-    JSON.stringify(value);
-  } catch (e) {
+    return JSON.stringify(value);
+  }
+  catch (e) {
     R5.out.error(
       `stringify failed at value: \n${value} \n\n with exception: \n${e}`
     );
   }
 }
 
-function does_callback_exist (callback) {
-  return callback || function () {};
-}
-
-function handle_err_log (err) {
-  if (err) {
+async function tryExecuteAndLogError (promise) {
+  try {
+    const res = await promise;
+    return res;
+  }
+  catch (err) {
     R5.out.error(err);
+    throw err;
   }
 }

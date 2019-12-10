@@ -54,7 +54,7 @@ Redis.prototype.disconnect = async function () {
 };
 
 Redis.prototype.handle_client_oper_action = async function (action, key) {
-  return tryExecuteAndLogError(this.client[action](key));
+  return try_execute_and_log_error(this.client[action](key));
 };
 
 Redis.prototype.get = async function (key) {
@@ -80,7 +80,7 @@ Redis.prototype.set = async function (key, value, key_expiration) {
     promise = this.client.expire(key, key_expiration);
   }
 
-  return tryExecuteAndLogError(promise);
+  return try_execute_and_log_error(promise);
 };
 
 Redis.prototype.delete = async function (key) {
@@ -102,7 +102,7 @@ Redis.prototype.set_list = async function (key, value, max_length) {
     const data = await this.client.rpush(key, value);
     return data;
   };
-  return tryExecuteAndLogError(setList());
+  return try_execute_and_log_error(setList());
 };
 
 Redis.prototype.delete_list = async function (key, value, count) {
@@ -114,11 +114,11 @@ Redis.prototype.get_zlist = async function (key) {
 };
 
 Redis.prototype.handle_get_list = async function (list_func, key) {
-  return tryExecuteAndLogError(this.client[list_func](key, 0, -1));
+  return try_execute_and_log_error(this.client[list_func](key, 0, -1));
 };
 
 Redis.prototype.rem_from_zlist = async function (key, min_score, max_score) {
-  return tryExecuteAndLogError(this.client.zremrangebyscore(key, min_score, max_score));
+  return try_execute_and_log_error(this.client.zremrangebyscore(key, min_score, max_score));
 };
 
 Redis.prototype.set_zlist = async function (key, value, score) {
@@ -175,7 +175,7 @@ function stringify (value) {
   }
 }
 
-async function tryExecuteAndLogError (promise) {
+async function try_execute_and_log_error (promise) {
   try {
     const res = await promise;
     return res;

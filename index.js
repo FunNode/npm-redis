@@ -38,7 +38,7 @@ Redis.prototype.connect = async function () {
 
   const _this = this;
   this.client.on('ready', () => {
-    R5.out.log(`Connected to Redis (db: ${this.db})`);
+    R5.out.log(`Redis connected (db: ${this.db})`);
     _this.ready = true;
   });
 

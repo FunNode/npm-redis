@@ -63,8 +63,8 @@ Redis.prototype.get = async function (key) {
 
 Redis.prototype.set = async function (key, value, key_expiration) {
   if (typeof value === 'object') {
-    R5.out.log(
-      'Passing a string into set is recommended (currently passed in object)'
+    R5.out.warn(
+      'Redis: passing a string into set is recommended (currently passed in object)'
     );
     value = stringify(value);
   }
@@ -109,12 +109,14 @@ Redis.prototype.delete_list = async function (key, value, count) {
   return this.client.lrem(key, count, value);
 };
 
-Redis.prototype.get_zlist = async function (key) {
-  return this.handle_get_list('zrange', key);
+Redis.prototype.get_zlist = async function (key, min_score, max_score) {
+  return this.handle_get_list('zrange', key, min_score, max_score);
 };
 
-Redis.prototype.handle_get_list = async function (list_func, key) {
-  return try_execute_and_log_error(this.client[list_func](key, 0, -1));
+Redis.prototype.handle_get_list = async function (list_func, key, min_score, max_score) {
+  if (min_score === undefined) { min_score = 0; }
+  if (max_score === undefined) { max_score = -1; }
+  return try_execute_and_log_error(this.client[list_func](key, min_score, max_score));
 };
 
 Redis.prototype.rem_from_zlist = async function (key, min_score, max_score) {

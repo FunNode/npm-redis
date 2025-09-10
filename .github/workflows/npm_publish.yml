@@ -27,7 +27,7 @@ jobs:
         env:
           REDIS_PORT: ${{ job.services.redis.ports[6379] }}
       - name: CodeClimate Test Reporter
-        uses: paambaati/codeclimate-action@v4.0.0
+        uses: paambaati/codeclimate-action@v3.1.0
         env:
           CC_TEST_REPORTER_ID: ${{secrets.cc_reporter_id}}
           REDIS_PORT: ${{ job.services.redis.ports[6379] }}

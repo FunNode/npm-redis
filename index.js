@@ -207,7 +207,7 @@ Redis.prototype.get_ttl = async function (key) {
   return this.handle_client_oper_action('ttl', key);
 };
 
-// Pipeline batching for better performance
+// Pipeline batching for better performance using multi() for async-redis compatibility
 Redis.prototype.batch = function (operations) {
   return new Promise((resolve, reject) => {
     if (!this.ready) {
@@ -223,61 +223,53 @@ Redis.prototype.batch = function (operations) {
     this.metrics.pipeline_batches++;
     this.metrics.pipeline_operations += operations.length;
 
-    const pipeline = this.client.pipeline();
+    const multi = this.client.multi();
 
     operations.forEach(op => {
       switch (op.command) {
         case 'get':
-          pipeline.get(op.key);
+          multi.get(op.key);
           break;
         case 'set':
           if (op.expiry) {
-            pipeline.set(op.key, op.value, 'EX', op.expiry);
+            multi.set(op.key, op.value, 'EX', op.expiry);
           } else {
-            pipeline.set(op.key, op.value);
+            multi.set(op.key, op.value);
           }
           break;
         case 'del':
-          pipeline.del(op.key);
+          multi.del(op.key);
           break;
         case 'zadd':
-          pipeline.zadd(op.key, op.score, op.value);
+          multi.zadd(op.key, op.score, op.value);
           break;
         case 'zrem':
-          pipeline.zrem(op.key, op.value);
+          multi.zrem(op.key, op.value);
           break;
         case 'zrange':
-          pipeline.zrange(op.key, op.start || 0, op.stop || -1);
+          multi.zrange(op.key, op.start || 0, op.stop || -1);
           break;
         case 'ttl':
-          pipeline.ttl(op.key);
+          multi.ttl(op.key);
           break;
         case 'expire':
-          pipeline.expire(op.key, op.seconds);
+          multi.expire(op.key, op.seconds);
           break;
         default:
           R5.out.warn(`Unsupported batch operation: ${op.command}`);
       }
     });
 
-    pipeline.exec((err, results) => {
+    multi.exec((err, results) => {
       if (err) {
         this.metrics.errors++;
-        R5.out.error(`Pipeline batch execution failed: ${err.message}`);
+        R5.out.error(`Multi batch execution failed: ${err.message}`);
         reject(err);
         return;
       }
 
-      // Extract values from pipeline results [error, value] format
-      const values = results.map(result => {
-        if (result[0]) {
-          this.metrics.errors++;
-          return null;
-        }
-        return result[1];
-      });
-
-      resolve(values);
+      // async-redis multi.exec() returns results directly
+      resolve(results);
     });
   });
 };

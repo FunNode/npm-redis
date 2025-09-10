@@ -23,8 +23,30 @@ describe('Redis Performance Enhancements', function() {
       retryAttempts: 2
     });
 
-    // Mock the client for testing
+    // Mock the client for testing with dynamic operation counting
+    let operationCount = 0;
+    const multiMock = {
+      get: () => { operationCount++; return multiMock; },
+      set: () => { operationCount++; return multiMock; },
+      del: () => { operationCount++; return multiMock; },
+      zadd: () => { operationCount++; return multiMock; },
+      zrem: () => { operationCount++; return multiMock; },
+      zrange: () => { operationCount++; return multiMock; },
+      ttl: () => { operationCount++; return multiMock; },
+      expire: () => { operationCount++; return multiMock; },
+      exec: (callback) => {
+        // Generate results based on operation count
+        const results = [];
+        for (let i = 0; i < operationCount; i++) {
+          results.push(i === 0 ? 'value1' : (i === 1 ? 'OK' : 1));
+        }
+        operationCount = 0; // Reset for next batch
+        callback(null, results);
+      }
+    };
+
     redis.client = {
+      multi: () => multiMock,
       pipeline: () => ({
         get: () => {},
         set: () => {},

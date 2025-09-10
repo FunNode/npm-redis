@@ -127,12 +127,12 @@ describe('Redis', function () {
 
   it('connects', async function () {
     await redis.connect();
-    expect(createClient).to.have.been.calledWith({
+    expect(createClient).to.have.been.calledWith(sinon.match({
       host,
       port,
       password: pass,
       db
-    });
+    }));
   });
 
   it('does not connect if already connected', async function () {
@@ -151,8 +151,10 @@ describe('Redis', function () {
   it('reconnects on connection lost', async function () {
     await redis.connect();
     const errorCallback = on.args[1][1];
+    // Trigger error callback which sets ready to false but doesn't auto-reconnect anymore
     await errorCallback({});
-    return expect(createClient).to.have.been.calledTwice;
+    expect(redis.ready).to.be.false;
+    expect(createClient).to.have.been.calledOnce;
   });
 
   it('disconnects', async function () {

@@ -26,18 +26,13 @@ jobs:
       - run: npm run test
         env:
           REDIS_PORT: ${{ job.services.redis.ports[6379] }}
-      - name: Download CodeClimate Test Reporter
-        run: |
-          curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 -o cc-test-reporter
-          chmod +x cc-test-reporter
-      - name: CodeClimate Test Reporter
-        run: |
-          ./cc-reporter before-build
-          npm run coverage
-          ./cc-reporter after-build --exit-code $?
-        env:
-          CC_TEST_REPORTER_ID: ${{secrets.cc_reporter_id}}
-          REDIS_PORT: ${{ job.services.redis.ports[6379] }}
+      # CodeClimate integration - temporarily disabled
+      # - uses: paambaati/codeclimate-action@v2.3.0
+      #   env:
+      #     CC_TEST_REPORTER_ID: ${{secrets.cc_reporter_id}}
+      #     REDIS_PORT: ${{ job.services.redis.ports[6379] }}
+      #   with:
+      #     coverageCommand: npm run coverage
   publish-gpr:
     needs: build
     runs-on: ubuntu-latest

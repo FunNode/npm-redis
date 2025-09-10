@@ -13,12 +13,33 @@ const redis = require('async-redis');
 
 // Constructors
 
-function Redis (host, port, pass, db = 0) {
+function Redis (host, port, pass, db = 0, options = {}) {
   this.host = host;
   this.port = port;
   this.pass = pass;
   this.db = db;
   this.ready = false;
+
+  // Performance optimization options
+  this.options = {
+    enablePipeline: options.enablePipeline !== false,
+    pipelineTimeout: options.pipelineTimeout || 10,
+    maxPipelineOps: options.maxPipelineOps || 100,
+    connectionPoolSize: options.connectionPoolSize || 1,
+    retryAttempts: options.retryAttempts || 3,
+    retryDelay: options.retryDelay || 1000
+  };
+
+  // Pipeline management
+  this.pendingPipeline = [];
+  this.pipelineTimer = null;
+  this.connectionPool = [];
+  this.metrics = {
+    operations: 0,
+    pipeline_operations: 0,
+    pipeline_batches: 0,
+    errors: 0
+  };
 }
 
 // Public Methods
@@ -29,12 +50,26 @@ Redis.prototype.connect = async function () {
     return;
   }
 
-  this.client = await redis.createClient({
+  const connectOptions = {
     host: this.host,
     port: this.port,
     password: this.pass,
-    db: this.db
-  });
+    db: this.db,
+    retry_strategy: (options) => {
+      if (options.error && options.error.code === 'ECONNREFUSED') {
+        R5.out.error('Redis server refused connection');
+      }
+      if (options.total_retry_time > 1000 * 60 * 60) {
+        return new Error('Retry time exhausted');
+      }
+      if (options.attempt > this.options.retryAttempts) {
+        return new Error('Max retry attempts exceeded');
+      }
+      return Math.min(options.attempt * this.options.retryDelay, 3000);
+    }
+  };
+
+  this.client = await redis.createClient(connectOptions);
 
   const _this = this;
   this.client.on('ready', () => {
@@ -45,7 +80,12 @@ Redis.prototype.connect = async function () {
   this.client.on('error', (err) => {
     R5.out.error(`Redis error: ${err}`);
     _this.ready = false;
-    _this.connect();
+    _this.metrics.errors++;
+  });
+
+  this.client.on('reconnecting', () => {
+    R5.out.log('Redis reconnecting...');
+    _this.ready = false;
   });
 };
 
@@ -58,10 +98,13 @@ Redis.prototype.handle_client_oper_action = async function (action, key) {
 };
 
 Redis.prototype.get = async function (key) {
+  this.metrics.operations++;
   return this.handle_client_oper_action('get', key);
 };
 
 Redis.prototype.set = async function (key, value, key_expiration) {
+  this.metrics.operations++;
+
   if (typeof value === 'object') {
     R5.out.warn(
       'Redis: passing a string into set is recommended (currently passed in object)'
@@ -162,6 +205,130 @@ Redis.prototype.decrement = async function (key) {
 
 Redis.prototype.get_ttl = async function (key) {
   return this.handle_client_oper_action('ttl', key);
+};
+
+// Pipeline batching for better performance
+Redis.prototype.batch = function (operations) {
+  return new Promise((resolve, reject) => {
+    if (!this.ready) {
+      reject(new Error('Redis not ready'));
+      return;
+    }
+
+    if (!operations || operations.length === 0) {
+      resolve([]);
+      return;
+    }
+
+    this.metrics.pipeline_batches++;
+    this.metrics.pipeline_operations += operations.length;
+
+    const pipeline = this.client.pipeline();
+
+    operations.forEach(op => {
+      switch (op.command) {
+        case 'get':
+          pipeline.get(op.key);
+          break;
+        case 'set':
+          if (op.expiry) {
+            pipeline.set(op.key, op.value, 'EX', op.expiry);
+          } else {
+            pipeline.set(op.key, op.value);
+          }
+          break;
+        case 'del':
+          pipeline.del(op.key);
+          break;
+        case 'zadd':
+          pipeline.zadd(op.key, op.score, op.value);
+          break;
+        case 'zrem':
+          pipeline.zrem(op.key, op.value);
+          break;
+        case 'zrange':
+          pipeline.zrange(op.key, op.start || 0, op.stop || -1);
+          break;
+        case 'ttl':
+          pipeline.ttl(op.key);
+          break;
+        case 'expire':
+          pipeline.expire(op.key, op.seconds);
+          break;
+        default:
+          R5.out.warn(`Unsupported batch operation: ${op.command}`);
+      }
+    });
+
+    pipeline.exec((err, results) => {
+      if (err) {
+        this.metrics.errors++;
+        R5.out.error(`Pipeline batch execution failed: ${err.message}`);
+        reject(err);
+        return;
+      }
+
+      // Extract values from pipeline results [error, value] format
+      const values = results.map(result => {
+        if (result[0]) {
+          this.metrics.errors++;
+          return null;
+        }
+        return result[1];
+      });
+
+      resolve(values);
+    });
+  });
+};
+
+// Enhanced bulk operations for common patterns
+Redis.prototype.mget = async function (keys) {
+  if (!keys || keys.length === 0) return [];
+
+  const operations = keys.map(key => ({ command: 'get', key }));
+  return this.batch(operations);
+};
+
+Redis.prototype.mset = async function (keyValuePairs, expiry) {
+  if (!keyValuePairs || keyValuePairs.length === 0) return [];
+
+  const operations = keyValuePairs.map(pair => ({
+    command: 'set',
+    key: pair.key,
+    value: pair.value,
+    expiry: expiry
+  }));
+
+  return this.batch(operations);
+};
+
+Redis.prototype.mdel = async function (keys) {
+  if (!keys || keys.length === 0) return [];
+
+  const operations = keys.map(key => ({ command: 'del', key }));
+  return this.batch(operations);
+};
+
+// Performance metrics
+Redis.prototype.getMetrics = function () {
+  return {
+    ...this.metrics,
+    ready: this.ready,
+    error_rate: this.metrics.operations > 0 ?
+      (this.metrics.errors / this.metrics.operations * 100).toFixed(2) + '%' : '0%',
+    pipeline_efficiency: this.metrics.pipeline_batches > 0 ?
+      (this.metrics.pipeline_operations / this.metrics.pipeline_batches).toFixed(1) : '0'
+  };
+};
+
+Redis.prototype.resetMetrics = function () {
+  this.metrics = {
+    operations: 0,
+    pipeline_operations: 0,
+    pipeline_batches: 0,
+    errors: 0
+  };
 };
 
 // Private Methods

@@ -1,6 +1,6 @@
 {
   "name": "@funnode/redis",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "A redis wrapper used by funnode repositories",
   "main": "index.js",
   "scripts": {

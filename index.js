@@ -34,6 +34,7 @@ function Redis (host, port, pass, db = 0, options = {}) {
   this.pendingPipeline = [];
   this.pipelineTimer = null;
   this.connectionPool = [];
+  this.reconnecting = false;
   this.metrics = {
     operations: 0,
     pipeline_operations: 0,
@@ -43,50 +44,107 @@ function Redis (host, port, pass, db = 0, options = {}) {
 }
 
 // Public Methods
-// TODO: check if this.ready, else reconnect and/or queue?
 
 Redis.prototype.connect = async function () {
   if (this.ready) {
     return;
   }
 
-  const connectOptions = {
-    host: this.host,
-    port: this.port,
-    password: this.pass,
-    db: this.db,
-    retry_strategy: (options) => {
-      if (options.error && options.error.code === 'ECONNREFUSED') {
-        R5.out.error('Redis server refused connection');
-      }
-      if (options.total_retry_time > 1000 * 60 * 60) {
-        return new Error('Retry time exhausted');
-      }
-      if (options.attempt > this.options.retryAttempts) {
-        return new Error('Max retry attempts exceeded');
-      }
-      return Math.min(options.attempt * this.options.retryDelay, 3000);
+  if (this.reconnecting) {
+    let attempts = 0;
+    while (this.reconnecting && attempts < 50) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
     }
-  };
+    if (this.ready) {
+      return;
+    }
+  }
 
-  this.client = await redis.createClient(connectOptions);
+  this.reconnecting = true;
 
-  const _this = this;
-  this.client.on('ready', () => {
-    R5.out.log(`Redis connected (host: ${this.host}, db: ${this.db})`);
-    _this.ready = true;
-  });
+  try {
+    const connectOptions = {
+      host: this.host,
+      port: this.port,
+      password: this.pass,
+      db: this.db,
+      retry_strategy: (options) => {
+        if (options.error && options.error.code === 'ECONNREFUSED') {
+          R5.out.error('Redis server refused connection');
+        }
+        if (options.total_retry_time > 1000 * 60 * 60) {
+          return new Error('Retry time exhausted');
+        }
+        if (options.attempt > this.options.retryAttempts) {
+          return new Error('Max retry attempts exceeded');
+        }
+        return Math.min(options.attempt * this.options.retryDelay, 3000);
+      }
+    };
 
-  this.client.on('error', (err) => {
-    R5.out.error(`Redis error: ${err}`);
-    _this.ready = false;
-    _this.metrics.errors++;
-  });
+    if (this.client) {
+      try {
+        await this.client.quit().catch(() => {});
+      } catch (e) {
+        // Ignore errors when closing old client
+      }
+    }
 
-  this.client.on('reconnecting', () => {
-    R5.out.log('Redis reconnecting...');
-    _this.ready = false;
-  });
+    this.client = await redis.createClient(connectOptions);
+
+    const _this = this;
+    this.client.on('ready', () => {
+      R5.out.log(`Redis connected (host: ${this.host}, db: ${this.db})`);
+      _this.ready = true;
+      _this.reconnecting = false;
+    });
+
+    this.client.on('error', (err) => {
+      R5.out.error(`Redis error: ${err}`);
+      _this.ready = false;
+      _this.metrics.errors++;
+      _this.reconnecting = false;
+    });
+
+    this.client.on('reconnecting', () => {
+      R5.out.log('Redis reconnecting...');
+      _this.ready = false;
+      _this.reconnecting = true;
+    });
+
+    this.client.on('end', () => {
+      R5.out.log('Redis connection ended');
+      _this.ready = false;
+      _this.reconnecting = false;
+    });
+
+    // Don't wait for ready event here - operations will handle connection state
+    // via ensure_connected() and execute_with_retry()
+  } finally {
+    this.reconnecting = false;
+  }
+};
+
+Redis.prototype.ensure_connected = async function () {
+  if (this.ready && this.client) {
+    return;
+  }
+
+  // If we have a client but ready isn't set, wait briefly for it
+  // This handles cases where connect() just finished but ready event hasn't fired yet
+  if (this.client && !this.ready && !this.reconnecting) {
+    let attempts = 0;
+    while (!this.ready && attempts < 10) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      attempts++;
+    }
+    if (this.ready) {
+      return;
+    }
+  }
+
+  await this.connect();
 };
 
 Redis.prototype.disconnect = async function () {
@@ -94,16 +152,18 @@ Redis.prototype.disconnect = async function () {
 };
 
 Redis.prototype.handle_client_oper_action = async function (action, key) {
-  return try_execute_and_log_error(this.client[action](key));
+  return this.execute_with_retry(() => this.client[action](key));
 };
 
 Redis.prototype.get = async function (key) {
   this.metrics.operations++;
+  await this.ensure_connected();
   return this.handle_client_oper_action('get', key);
 };
 
 Redis.prototype.set = async function (key, value, key_expiration) {
   this.metrics.operations++;
+  await this.ensure_connected();
 
   if (typeof value === 'object') {
     R5.out.warn(
@@ -123,10 +183,11 @@ Redis.prototype.set = async function (key, value, key_expiration) {
     promise = this.client.expire(key, key_expiration);
   }
 
-  return try_execute_and_log_error(promise);
+  return this.execute_with_retry(() => promise);
 };
 
 Redis.prototype.delete = async function (key) {
+  await this.ensure_connected();
   return this.handle_client_oper_action('del', key);
 };
 
@@ -135,6 +196,7 @@ Redis.prototype.get_list = async function (key) {
 };
 
 Redis.prototype.set_list = async function (key, value, max_length) {
+  await this.ensure_connected();
   const setList = async () => {
     if (max_length) {
       const length = await this.client.llen(key);
@@ -145,11 +207,12 @@ Redis.prototype.set_list = async function (key, value, max_length) {
     const data = await this.client.rpush(key, value);
     return data;
   };
-  return try_execute_and_log_error(setList());
+  return this.execute_with_retry(() => setList());
 };
 
 Redis.prototype.delete_list = async function (key, value, count) {
-  return this.client.lrem(key, count, value);
+  await this.ensure_connected();
+  return this.execute_with_retry(() => this.client.lrem(key, count, value));
 };
 
 Redis.prototype.get_zlist = async function (key, min_score, max_score) {
@@ -157,64 +220,82 @@ Redis.prototype.get_zlist = async function (key, min_score, max_score) {
 };
 
 Redis.prototype.handle_get_list = async function (list_func, key, min_score, max_score) {
+  await this.ensure_connected();
   if (min_score === undefined) { min_score = 0; }
   if (max_score === undefined) { max_score = -1; }
-  return try_execute_and_log_error(this.client[list_func](key, min_score, max_score));
+  return this.execute_with_retry(() => this.client[list_func](key, min_score, max_score));
 };
 
 Redis.prototype.rem_from_zlist = async function (key, min_score, max_score) {
-  return try_execute_and_log_error(this.client.zremrangebyscore(key, min_score, max_score));
+  await this.ensure_connected();
+  return this.execute_with_retry(() => this.client.zremrangebyscore(key, min_score, max_score));
 };
 
 Redis.prototype.set_zlist = async function (key, value, score) {
-  return this.client.zadd(key, score, value);
+  await this.ensure_connected();
+  return this.execute_with_retry(() => this.client.zadd(key, score, value));
 };
 
 Redis.prototype.delete_zlist = async function (key, value) {
-  return this.client.zrem(key, value);
+  await this.ensure_connected();
+  return this.execute_with_retry(() => this.client.zrem(key, value));
 };
 
 Redis.prototype.set_set = async function (key, value) {
-  return this.client.sadd(key, value);
+  await this.ensure_connected();
+  return this.execute_with_retry(() => this.client.sadd(key, value));
 };
 
 Redis.prototype.get_set = async function (key) {
-  return this.client.smembers(key);
+  await this.ensure_connected();
+  return this.execute_with_retry(() => this.client.smembers(key));
 };
 
 Redis.prototype.pop_set = async function (key) {
-  return this.client.spop(key);
+  await this.ensure_connected();
+  return this.execute_with_retry(() => this.client.spop(key));
 };
 
 Redis.prototype.delete_set = async function (key, value) {
-  return this.client.srem(key, value);
+  await this.ensure_connected();
+  return this.execute_with_retry(() => this.client.srem(key, value));
 };
 
 Redis.prototype.delete_all = async function () {
-  await this.client.flushdb();
+  await this.ensure_connected();
+  await this.execute_with_retry(() => this.client.flushdb());
   R5.out.log('Redis flushed');
 };
 
 Redis.prototype.increment = async function (key) {
+  await this.ensure_connected();
   return this.handle_client_oper_action('incr', key);
 };
 
 Redis.prototype.decrement = async function (key) {
+  await this.ensure_connected();
   return this.handle_client_oper_action('decr', key);
 };
 
 Redis.prototype.get_ttl = async function (key) {
+  await this.ensure_connected();
   return this.handle_client_oper_action('ttl', key);
 };
 
 // Pipeline batching for better performance using multi() for async-redis compatibility
-Redis.prototype.batch = function (operations) {
-  return new Promise((resolve, reject) => {
-    if (!this.ready) {
-      reject(new Error('Redis not ready'));
-      return;
+Redis.prototype.batch = async function (operations) {
+  if (!this.ready) {
+    // Try to ensure connection if no client exists
+    if (!this.client) {
+      await this.ensure_connected();
     }
+    // If still not ready after attempting connection, reject
+    if (!this.ready) {
+      throw new Error('Redis not ready');
+    }
+  }
 
+  return new Promise((resolve, reject) => {
     if (!operations || operations.length === 0) {
       resolve([]);
       return;
@@ -334,6 +415,51 @@ function stringify (value) {
       `stringify failed at value: \n${value} \n\n with exception: \n${e}`
     );
   }
+}
+
+Redis.prototype.execute_with_retry = async function (operation, max_retries = 3) {
+  let last_error;
+
+  for (let attempt = 0; attempt < max_retries; attempt++) {
+    try {
+      if (!this.ready || !this.client) {
+        await this.ensure_connected();
+      }
+
+      const result = await operation();
+      return result;
+    } catch (err) {
+      last_error = err;
+
+      // Check if it's a connection-related error
+      const is_connection_error = err.message && (
+        err.message.includes('Connection') ||
+        err.message.includes('ECONNREFUSED') ||
+        err.message.includes('ENOTFOUND') ||
+        err.message.includes('ETIMEDOUT') ||
+        err.message.includes('Broken pipe') ||
+        err.message.includes('write EPIPE')
+      );
+
+      if (is_connection_error && attempt < max_retries - 1) {
+        this.ready = false;
+        R5.out.warn(`Redis connection error, attempting reconnect (attempt ${attempt + 1}/${max_retries}): ${err.message}`);
+
+        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 500));
+
+        try {
+          await this.connect();
+        } catch (connect_err) {
+          // Continue to next retry attempt
+        }
+      } else {
+        break;
+      }
+    }
+  }
+
+  R5.out.error(`Redis operation failed after ${max_retries} attempts: ${last_error}`);
+  throw last_error;
 }
 
 async function try_execute_and_log_error (promise) {

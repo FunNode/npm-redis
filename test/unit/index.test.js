@@ -21,6 +21,7 @@ describe('Redis', function () {
   let quit;
   let get;
   let set;
+  let evalStub;
   let expire;
   let del;
   let lrange;
@@ -52,6 +53,7 @@ describe('Redis', function () {
       quit,
       get,
       set,
+      eval: evalStub,
       expire,
       del,
       lrange,
@@ -86,6 +88,7 @@ describe('Redis', function () {
     quit = sandbox.stub().resolves();
     get = sandbox.stub().resolves('get');
     set = sandbox.stub().resolves('set');
+    evalStub = sandbox.stub().resolves('eval');
     expire = sandbox.stub().resolves('setex');
     del = sandbox.stub().resolves('del');
     lrange = sandbox.stub().resolves('lrange');
@@ -228,6 +231,48 @@ describe('Redis', function () {
     await redis.connect();
     await redis.delete(key);
     expect(del).to.have.been.calledWith(key);
+  });
+
+  it('sets nx when key is available', async function () {
+    set = sandbox.stub().resolves('OK');
+    inject();
+    await redis.connect();
+    const res = await redis.set_nx(key, value, expiration);
+    expect(res).to.equal(true);
+    expect(set).to.have.been.calledWith(key, value, 'EX', expiration, 'NX');
+  });
+
+  it('sets nx when key is already taken', async function () {
+    set = sandbox.stub().resolves(null);
+    inject();
+    await redis.connect();
+    const res = await redis.set_nx(key, value, expiration);
+    expect(res).to.equal(false);
+  });
+
+  it('sets nx with a custom unit', async function () {
+    set = sandbox.stub().resolves('OK');
+    inject();
+    await redis.connect();
+    await redis.set_nx(key, value, expiration, 'PX');
+    expect(set).to.have.been.calledWith(key, value, 'PX', expiration, 'NX');
+  });
+
+  it('deletes if equals when value matches', async function () {
+    evalStub = sandbox.stub().resolves(1);
+    inject();
+    await redis.connect();
+    const res = await redis.delete_if_equals(key, value);
+    expect(res).to.equal(true);
+    expect(evalStub).to.have.been.calledWith(sinon.match.string, 1, key, value);
+  });
+
+  it('does not delete if equals when value does not match', async function () {
+    evalStub = sandbox.stub().resolves(0);
+    inject();
+    await redis.connect();
+    const res = await redis.delete_if_equals(key, value);
+    expect(res).to.equal(false);
   });
 
   it('gets list', async function () {

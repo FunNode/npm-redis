@@ -186,6 +186,26 @@ Redis.prototype.set = async function (key, value, key_expiration) {
   return this.execute_with_retry(() => promise);
 };
 
+Redis.prototype.set_nx = async function (key, value, ttl, unit = 'EX') {
+  this.metrics.operations++;
+  await this.ensure_connected();
+  const result = await this.execute_with_retry(() => this.client.set(key, value, unit, ttl, 'NX'));
+  return result === 'OK';
+};
+
+Redis.prototype.delete_if_equals = async function (key, value) {
+  await this.ensure_connected();
+  const script = `
+    if redis.call("GET", KEYS[1]) == ARGV[1] then
+      return redis.call("DEL", KEYS[1])
+    else
+      return 0
+    end
+  `;
+  const result = await this.execute_with_retry(() => this.client.eval(script, 1, key, value));
+  return result === 1;
+};
+
 Redis.prototype.delete = async function (key) {
   await this.ensure_connected();
   return this.handle_client_oper_action('del', key);

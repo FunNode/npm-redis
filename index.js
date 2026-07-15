@@ -198,13 +198,10 @@ Redis.prototype.get_list = async function (key) {
 Redis.prototype.set_list = async function (key, value, max_length) {
   await this.ensure_connected();
   const setList = async () => {
-    if (max_length) {
-      const length = await this.client.llen(key);
-      if (length >= max_length) {
-        await this.client.lpop(key);
-      }
-    }
     const data = await this.client.rpush(key, value);
+    if (max_length) {
+      await this.client.ltrim(key, -max_length, -1);
+    }
     return data;
   };
   return this.execute_with_retry(() => setList());

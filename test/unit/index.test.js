@@ -27,6 +27,7 @@ describe('Redis', function () {
   let llen;
   let lpop;
   let rpush;
+  let ltrim;
   let lrem;
   let zrange;
   let zremrangebyscore;
@@ -57,6 +58,7 @@ describe('Redis', function () {
       llen,
       lpop,
       rpush,
+      ltrim,
       lrem,
       zrange,
       zremrangebyscore,
@@ -90,6 +92,7 @@ describe('Redis', function () {
     llen = sandbox.stub().resolves('llen');
     lpop = sandbox.stub().resolves('lpop');
     rpush = sandbox.stub().resolves('rpush');
+    ltrim = sandbox.stub().resolves('ltrim');
     lrem = sandbox.stub().resolves('lrem');
     zrange = sandbox.stub().resolves('zrange');
     zremrangebyscore = sandbox.stub().resolves('zremrangebyscore');
@@ -237,29 +240,15 @@ describe('Redis', function () {
   it('sets list', async function () {
     await redis.connect();
     await redis.set_list(key, value, false);
-    expect(llen).to.not.have.been.called;
-    expect(lpop).to.not.have.been.called;
     expect(rpush).to.have.been.calledWith(key, value);
+    expect(ltrim).to.not.have.been.called;
   });
 
-  it('sets list with max length not exceeded', async function () {
-    llen = sandbox.stub().resolves(9);
-    inject();
+  it('sets list with max length', async function () {
     await redis.connect();
     await redis.set_list(key, value, 10);
-    expect(llen).to.have.been.calledWith(key);
-    expect(lpop).to.not.have.been.called;
     expect(rpush).to.have.been.calledWith(key, value);
-  });
-
-  it('sets list with max length exceeded', async function () {
-    llen = sandbox.stub().resolves(10);
-    inject();
-    await redis.connect();
-    await redis.set_list(key, value, 10);
-    expect(llen).to.have.been.calledWith(key);
-    expect(lpop).to.have.been.calledWith(key);
-    expect(rpush).to.have.been.calledWith(key, value);
+    expect(ltrim).to.have.been.calledWith(key, -10, -1);
   });
 
   it('deletes list', async function () {

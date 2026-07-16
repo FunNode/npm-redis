@@ -33,6 +33,7 @@ describe('Redis', function () {
   let zrange;
   let zrangebyscore;
   let zremrangebyscore;
+  let zscore;
   let zadd;
   let zrem;
   let sadd;
@@ -67,6 +68,7 @@ describe('Redis', function () {
       zrange,
       zrangebyscore,
       zremrangebyscore,
+      zscore,
       zadd,
       zrem,
       sadd,
@@ -104,6 +106,7 @@ describe('Redis', function () {
     zrange = sandbox.stub().resolves('zrange');
     zrangebyscore = sandbox.stub().resolves('zrangebyscore');
     zremrangebyscore = sandbox.stub().resolves('zremrangebyscore');
+    zscore = sandbox.stub().resolves('zscore');
     zadd = sandbox.stub().resolves('zadd');
     zrem = sandbox.stub().resolves('zrem');
     sadd = sandbox.stub().resolves('sadd');
@@ -325,6 +328,13 @@ describe('Redis', function () {
     await redis.connect();
     await redis.rem_from_zlist(key, 'min', 'max');
     expect(zremrangebyscore).to.have.been.calledWith(key, 'min', 'max');
+  });
+
+  it('gets zscore for a member', async function () {
+    await redis.connect();
+    const res = await redis.get_zscore(key, value);
+    expect(res).to.eql('zscore');
+    expect(zscore).to.have.been.calledWith(key, value);
   });
 
   it('sets zlist', async function () {

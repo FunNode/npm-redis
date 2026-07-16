@@ -256,6 +256,11 @@ Redis.prototype.set_zlist = async function (key, value, score) {
   return this.execute_with_retry(() => this.client.zadd(key, score, value));
 };
 
+Redis.prototype.get_zscore = async function (key, value) {
+  await this.ensure_connected();
+  return this.execute_with_retry(() => this.client.zscore(key, value));
+};
+
 Redis.prototype.delete_zlist = async function (key, value) {
   await this.ensure_connected();
   return this.execute_with_retry(() => this.client.zrem(key, value));

@@ -40,6 +40,7 @@ describe('Redis', function () {
   let spop;
   let srem;
   let flushdb;
+  let scan;
   let incr;
   let decr;
   let ttl;
@@ -73,6 +74,7 @@ describe('Redis', function () {
       spop,
       srem,
       flushdb,
+      scan,
       incr,
       decr,
       ttl
@@ -109,6 +111,7 @@ describe('Redis', function () {
     spop = sandbox.stub().resolves('spop');
     srem = sandbox.stub().resolves('srem');
     flushdb = sandbox.stub().resolves('flushdb');
+    scan = sandbox.stub().resolves(['0', []]);
     incr = sandbox.stub().resolves('incr');
     decr = sandbox.stub().resolves('decr');
     ttl = sandbox.stub().resolves('ttl');
@@ -387,5 +390,26 @@ describe('Redis', function () {
     await redis.connect();
     await redis.delete_all();
     expect(flushdb).to.have.been.called;
+  });
+
+  it('scans keys matching a pattern in a single page', async function () {
+    scan = sandbox.stub().resolves(['0', ['match:1', 'match:2']]);
+    inject();
+    await redis.connect();
+    const keys = await redis.scan_keys('match:*');
+    expect(keys).to.eql(['match:1', 'match:2']);
+    expect(scan).to.have.been.calledWith('0', 'MATCH', 'match:*', 'COUNT', 100);
+  });
+
+  it('scans keys across multiple pages until the cursor returns to 0', async function () {
+    scan = sandbox.stub();
+    scan.onCall(0).resolves(['5', ['match:1']]);
+    scan.onCall(1).resolves(['0', ['match:2']]);
+    inject();
+    await redis.connect();
+    const keys = await redis.scan_keys('match:*', 50);
+    expect(keys).to.eql(['match:1', 'match:2']);
+    expect(scan.firstCall).to.have.been.calledWith('0', 'MATCH', 'match:*', 'COUNT', 50);
+    expect(scan.secondCall).to.have.been.calledWith('5', 'MATCH', 'match:*', 'COUNT', 50);
   });
 });

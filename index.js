@@ -287,6 +287,18 @@ Redis.prototype.delete_all = async function () {
   R5.out.log('Redis flushed');
 };
 
+Redis.prototype.scan_keys = async function (pattern, count = 100) {
+  await this.ensure_connected();
+  let cursor = '0';
+  let keys = [];
+  do {
+    const [next_cursor, batch] = await this.execute_with_retry(() => this.client.scan(cursor, 'MATCH', pattern, 'COUNT', count));
+    cursor = next_cursor;
+    keys = keys.concat(batch);
+  } while (cursor !== '0');
+  return keys;
+};
+
 Redis.prototype.increment = async function (key) {
   await this.ensure_connected();
   return this.handle_client_oper_action('incr', key);

@@ -233,7 +233,10 @@ Redis.prototype.delete_list = async function (key, value, count) {
 };
 
 Redis.prototype.get_zlist = async function (key, min_score, max_score) {
-  return this.handle_get_list('zrange', key, min_score, max_score);
+  await this.ensure_connected();
+  if (min_score === undefined) { min_score = '-inf'; }
+  if (max_score === undefined) { max_score = '+inf'; }
+  return this.execute_with_retry(() => this.client.zrangebyscore(key, min_score, max_score));
 };
 
 Redis.prototype.handle_get_list = async function (list_func, key, min_score, max_score) {

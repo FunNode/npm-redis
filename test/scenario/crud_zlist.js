@@ -75,4 +75,31 @@ describe('Redis', () => {
       return expect(responseAfterDelete).to.not.include('one');
     });
   });
+
+  // Regression test for a bug where get_zlist used a rank-based ZRANGE instead
+  // of a score-based query, so it always returned every member of the sorted
+  // set regardless of min/max, ignoring score filtering entirely.
+  describe('Get zlist filtered by score', () => {
+    const key = 'zlist_score_range';
+    let past_due;
+    let not_yet_due;
+
+    before(async function () {
+      await redis.set_zlist(key, 'past-due', 100);
+      await redis.set_zlist(key, 'not-yet-due', 999999999999);
+
+      past_due = await redis.get_zlist(key, 0, Date.now());
+      not_yet_due = await redis.get_zlist(key, Date.now(), '+inf');
+    });
+
+    it('only returns members whose score has already passed', () => {
+      expect(past_due).to.include('past-due');
+      expect(past_due).to.not.include('not-yet-due');
+    });
+
+    it('only returns members whose score is still in the future', () => {
+      expect(not_yet_due).to.include('not-yet-due');
+      expect(not_yet_due).to.not.include('past-due');
+    });
+  });
 });

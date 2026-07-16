@@ -31,6 +31,7 @@ describe('Redis', function () {
   let ltrim;
   let lrem;
   let zrange;
+  let zrangebyscore;
   let zremrangebyscore;
   let zadd;
   let zrem;
@@ -63,6 +64,7 @@ describe('Redis', function () {
       ltrim,
       lrem,
       zrange,
+      zrangebyscore,
       zremrangebyscore,
       zadd,
       zrem,
@@ -98,6 +100,7 @@ describe('Redis', function () {
     ltrim = sandbox.stub().resolves('ltrim');
     lrem = sandbox.stub().resolves('lrem');
     zrange = sandbox.stub().resolves('zrange');
+    zrangebyscore = sandbox.stub().resolves('zrangebyscore');
     zremrangebyscore = sandbox.stub().resolves('zremrangebyscore');
     zadd = sandbox.stub().resolves('zadd');
     zrem = sandbox.stub().resolves('zrem');
@@ -302,11 +305,17 @@ describe('Redis', function () {
     expect(lrem).to.have.been.calledWith(key, 10, value);
   });
 
-  it('gets zlist', async function () {
+  it('gets zlist with default full range', async function () {
     await redis.connect();
     const res = await redis.get_zlist(key);
-    expect(res).to.eql('zrange');
-    expect(zrange).to.have.been.calledWith(key);
+    expect(res).to.eql('zrangebyscore');
+    expect(zrangebyscore).to.have.been.calledWith(key, '-inf', '+inf');
+  });
+
+  it('gets zlist within a score range', async function () {
+    await redis.connect();
+    await redis.get_zlist(key, 100, 200);
+    expect(zrangebyscore).to.have.been.calledWith(key, 100, 200);
   });
 
   it('remove from zlist', async function () {

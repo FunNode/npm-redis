@@ -172,6 +172,28 @@ describe('Redis', function () {
     expect(createClient).to.have.been.calledOnce;
   });
 
+  it('does not create multiple clients when connect() is called concurrently', async function () {
+    const [p1, p2, p3] = [redis.connect(), redis.connect(), redis.connect()];
+    await Promise.all([p1, p2, p3]);
+    expect(createClient).to.have.been.calledOnce;
+  });
+
+  it('retries and recovers from a lowercase-message connection AbortError', async function () {
+    this.timeout(3000);
+    get = sandbox.stub();
+    get.onCall(0).rejects(new Error("GET can't be processed. The connection is already closed."));
+    get.onCall(1).resolves('get');
+    inject();
+    await redis.connect();
+    const readyCallback = on.args[0][1];
+    readyCallback();
+
+    const res = await redis.get(key);
+    expect(res).to.eql('get');
+    expect(get.callCount).to.eql(2);
+    expect(createClient.callCount).to.be.greaterThan(1);
+  });
+
   it('disconnects', async function () {
     await redis.connect();
     await redis.disconnect();

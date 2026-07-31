@@ -9,7 +9,15 @@ if (!global.R5) {
   };
 }
 
-const redis = require('async-redis');
+const redis = require('redis');
+const {
+  ClientClosedError,
+  ClientOfflineError,
+  SocketClosedUnexpectedlyError,
+  ConnectionTimeoutError,
+  SocketTimeoutError,
+  TimeoutError
+} = redis;
 
 // Constructors
 
@@ -68,33 +76,32 @@ Redis.prototype.connect = async function () {
 
 Redis.prototype._connect_once = async function () {
   const connectOptions = {
-    host: this.host,
-    port: this.port,
+    socket: {
+      host: this.host,
+      port: this.port,
+      reconnectStrategy: (retries, cause) => {
+        if (cause && cause.code === 'ECONNREFUSED') {
+          R5.out.error('Redis server refused connection');
+        }
+        if (retries >= this.options.retryAttempts) {
+          return new Error('Max retry attempts exceeded');
+        }
+        return Math.min((retries + 1) * this.options.retryDelay, 3000);
+      }
+    },
     password: this.pass,
-    db: this.db,
-    retry_strategy: (options) => {
-      if (options.error && options.error.code === 'ECONNREFUSED') {
-        R5.out.error('Redis server refused connection');
-      }
-      if (options.total_retry_time > 1000 * 60 * 60) {
-        return new Error('Retry time exhausted');
-      }
-      if (options.attempt > this.options.retryAttempts) {
-        return new Error('Max retry attempts exceeded');
-      }
-      return Math.min(options.attempt * this.options.retryDelay, 3000);
-    }
+    database: this.db
   };
 
   if (this.client) {
     try {
-      await this.client.quit().catch(() => {});
+      await this.client.close().catch(() => {});
     } catch (e) {
       // Ignore errors when closing old client
     }
   }
 
-  this.client = await redis.createClient(connectOptions);
+  this.client = redis.createClient(connectOptions);
 
   const _this = this;
   this.client.on('ready', () => {
@@ -122,8 +129,15 @@ Redis.prototype._connect_once = async function () {
     _this.reconnecting = false;
   });
 
-  // Don't wait for ready event here - operations will handle connection state
-  // via ensure_connected() and execute_with_retry()
+  // Fire-and-forget: v6's client.connect() promise doesn't settle until the
+  // connection succeeds or reconnectStrategy gives up, which can take up to
+  // ~retryAttempts * retryDelay ms. Awaiting it here would make connect()
+  // block callers at boot instead of returning immediately and tracking
+  // readiness via the 'ready'/'reconnecting' events plus ensure_connected()'s
+  // short poll, as today.
+  this.client.connect().catch((err) => {
+    R5.out.error(`Redis initial connect failed: ${err.message}`);
+  });
 };
 
 Redis.prototype.ensure_connected = async function () {
@@ -148,7 +162,7 @@ Redis.prototype.ensure_connected = async function () {
 };
 
 Redis.prototype.disconnect = async function () {
-  return this.client.quit();
+  return this.client.close();
 };
 
 Redis.prototype.handle_client_oper_action = async function (action, key) {
@@ -177,7 +191,7 @@ Redis.prototype.set = async function (key, value, key_expiration) {
     promise = this.client.set(key, value);
   }
   else if (value) {
-    promise = this.client.set(key, value, 'EX', key_expiration);
+    promise = this.client.set(key, value, { EX: key_expiration });
   }
   else {
     promise = this.client.expire(key, key_expiration);
@@ -189,7 +203,7 @@ Redis.prototype.set = async function (key, value, key_expiration) {
 Redis.prototype.set_nx = async function (key, value, ttl, unit = 'EX') {
   this.metrics.operations++;
   await this.ensure_connected();
-  const result = await this.execute_with_retry(() => this.client.set(key, value, unit, ttl, 'NX'));
+  const result = await this.execute_with_retry(() => this.client.set(key, value, { [unit]: ttl, NX: true }));
   return result === 'OK';
 };
 
@@ -202,7 +216,7 @@ Redis.prototype.delete_if_equals = async function (key, value) {
       return 0
     end
   `;
-  const result = await this.execute_with_retry(() => this.client.eval(script, 1, key, value));
+  const result = await this.execute_with_retry(() => this.client.eval(script, { keys: [key], arguments: [value] }));
   return result === 1;
 };
 
@@ -212,15 +226,15 @@ Redis.prototype.delete = async function (key) {
 };
 
 Redis.prototype.get_list = async function (key) {
-  return this.handle_get_list('lrange', key);
+  return this.handle_get_list('lRange', key);
 };
 
 Redis.prototype.set_list = async function (key, value, max_length) {
   await this.ensure_connected();
   const setList = async () => {
-    const data = await this.client.rpush(key, value);
+    const data = await this.client.rPush(key, value);
     if (max_length) {
-      await this.client.ltrim(key, -max_length, -1);
+      await this.client.lTrim(key, -max_length, -1);
     }
     return data;
   };
@@ -229,14 +243,14 @@ Redis.prototype.set_list = async function (key, value, max_length) {
 
 Redis.prototype.delete_list = async function (key, value, count) {
   await this.ensure_connected();
-  return this.execute_with_retry(() => this.client.lrem(key, count, value));
+  return this.execute_with_retry(() => this.client.lRem(key, count, value));
 };
 
 Redis.prototype.get_zlist = async function (key, min_score, max_score) {
   await this.ensure_connected();
   if (min_score === undefined) { min_score = '-inf'; }
   if (max_score === undefined) { max_score = '+inf'; }
-  return this.execute_with_retry(() => this.client.zrangebyscore(key, min_score, max_score));
+  return this.execute_with_retry(() => this.client.zRangeByScore(key, min_score, max_score));
 };
 
 Redis.prototype.handle_get_list = async function (list_func, key, min_score, max_score) {
@@ -248,47 +262,47 @@ Redis.prototype.handle_get_list = async function (list_func, key, min_score, max
 
 Redis.prototype.rem_from_zlist = async function (key, min_score, max_score) {
   await this.ensure_connected();
-  return this.execute_with_retry(() => this.client.zremrangebyscore(key, min_score, max_score));
+  return this.execute_with_retry(() => this.client.zRemRangeByScore(key, min_score, max_score));
 };
 
 Redis.prototype.set_zlist = async function (key, value, score) {
   await this.ensure_connected();
-  return this.execute_with_retry(() => this.client.zadd(key, score, value));
+  return this.execute_with_retry(() => this.client.zAdd(key, { score, value }));
 };
 
 Redis.prototype.get_zscore = async function (key, value) {
   await this.ensure_connected();
-  return this.execute_with_retry(() => this.client.zscore(key, value));
+  return this.execute_with_retry(() => this.client.zScore(key, value));
 };
 
 Redis.prototype.delete_zlist = async function (key, value) {
   await this.ensure_connected();
-  return this.execute_with_retry(() => this.client.zrem(key, value));
+  return this.execute_with_retry(() => this.client.zRem(key, value));
 };
 
 Redis.prototype.set_set = async function (key, value) {
   await this.ensure_connected();
-  return this.execute_with_retry(() => this.client.sadd(key, value));
+  return this.execute_with_retry(() => this.client.sAdd(key, value));
 };
 
 Redis.prototype.get_set = async function (key) {
   await this.ensure_connected();
-  return this.execute_with_retry(() => this.client.smembers(key));
+  return this.execute_with_retry(() => this.client.sMembers(key));
 };
 
 Redis.prototype.pop_set = async function (key) {
   await this.ensure_connected();
-  return this.execute_with_retry(() => this.client.spop(key));
+  return this.execute_with_retry(() => this.client.sPop(key));
 };
 
 Redis.prototype.delete_set = async function (key, value) {
   await this.ensure_connected();
-  return this.execute_with_retry(() => this.client.srem(key, value));
+  return this.execute_with_retry(() => this.client.sRem(key, value));
 };
 
 Redis.prototype.delete_all = async function () {
   await this.ensure_connected();
-  await this.execute_with_retry(() => this.client.flushdb());
+  await this.execute_with_retry(() => this.client.flushDb());
   R5.out.log('Redis flushed');
 };
 
@@ -297,7 +311,7 @@ Redis.prototype.scan_keys = async function (pattern, count = 100) {
   let cursor = '0';
   let keys = [];
   do {
-    const [next_cursor, batch] = await this.execute_with_retry(() => this.client.scan(cursor, 'MATCH', pattern, 'COUNT', count));
+    const { cursor: next_cursor, keys: batch } = await this.execute_with_retry(() => this.client.scan(cursor, { MATCH: pattern, COUNT: count }));
     cursor = next_cursor;
     keys = keys.concat(batch);
   } while (cursor !== '0');
@@ -319,7 +333,7 @@ Redis.prototype.get_ttl = async function (key) {
   return this.handle_client_oper_action('ttl', key);
 };
 
-// Pipeline batching for better performance using multi() for async-redis compatibility
+// Pipeline batching for better performance using multi()
 Redis.prototype.batch = async function (operations) {
   if (!this.ready) {
     // Try to ensure connection if no client exists
@@ -332,64 +346,57 @@ Redis.prototype.batch = async function (operations) {
     }
   }
 
-  return new Promise((resolve, reject) => {
-    if (!operations || operations.length === 0) {
-      resolve([]);
-      return;
+  if (!operations || operations.length === 0) {
+    return [];
+  }
+
+  this.metrics.pipeline_batches++;
+  this.metrics.pipeline_operations += operations.length;
+
+  const multi = this.client.multi();
+
+  operations.forEach(op => {
+    switch (op.command) {
+      case 'get':
+        multi.get(op.key);
+        break;
+      case 'set':
+        if (op.expiry) {
+          multi.set(op.key, op.value, { EX: op.expiry });
+        } else {
+          multi.set(op.key, op.value);
+        }
+        break;
+      case 'del':
+        multi.del(op.key);
+        break;
+      case 'zadd':
+        multi.zAdd(op.key, { score: op.score, value: op.value });
+        break;
+      case 'zrem':
+        multi.zRem(op.key, op.value);
+        break;
+      case 'zrange':
+        multi.zRange(op.key, op.start || 0, op.stop || -1);
+        break;
+      case 'ttl':
+        multi.ttl(op.key);
+        break;
+      case 'expire':
+        multi.expire(op.key, op.seconds);
+        break;
+      default:
+        R5.out.warn(`Unsupported batch operation: ${op.command}`);
     }
-
-    this.metrics.pipeline_batches++;
-    this.metrics.pipeline_operations += operations.length;
-
-    const multi = this.client.multi();
-
-    operations.forEach(op => {
-      switch (op.command) {
-        case 'get':
-          multi.get(op.key);
-          break;
-        case 'set':
-          if (op.expiry) {
-            multi.set(op.key, op.value, 'EX', op.expiry);
-          } else {
-            multi.set(op.key, op.value);
-          }
-          break;
-        case 'del':
-          multi.del(op.key);
-          break;
-        case 'zadd':
-          multi.zadd(op.key, op.score, op.value);
-          break;
-        case 'zrem':
-          multi.zrem(op.key, op.value);
-          break;
-        case 'zrange':
-          multi.zrange(op.key, op.start || 0, op.stop || -1);
-          break;
-        case 'ttl':
-          multi.ttl(op.key);
-          break;
-        case 'expire':
-          multi.expire(op.key, op.seconds);
-          break;
-        default:
-          R5.out.warn(`Unsupported batch operation: ${op.command}`);
-      }
-    });
-
-    multi.exec((err, results) => {
-      if (err) {
-        this.metrics.errors++;
-        R5.out.error(`Multi batch execution failed: ${err.message}`);
-        reject(err);
-        return;
-      }
-
-      // async-redis multi.exec() returns results directly
-      resolve(results);
-    });
   });
+
+  try {
+    return await multi.exec();
+  } catch (err) {
+    this.metrics.errors++;
+    R5.out.error(`Multi batch execution failed: ${err.message}`);
+    throw err;
+  }
 };
 
 // Enhanced bulk operations for common patterns
@@ -468,18 +475,29 @@ Redis.prototype.execute_with_retry = async function (operation, max_retries = 3)
     } catch (err) {
       last_error = err;
 
-      // Check if it's a connection-related error (case-insensitive: node-redis's
-      // AbortError uses lowercase "connection", e.g. "GET can't be processed.
-      // The connection is already closed.")
+      // Check if it's a connection-related error. node-redis v6 has its own
+      // error classes (e.g. ClientClosedError: "The client is closed") that
+      // don't all contain the substring "connection", so classify by
+      // instanceof first and fall back to substring matching for raw OS-level
+      // errors (ECONNREFUSED/ENOTFOUND/etc) that don't originate from
+      // node-redis's own error hierarchy.
       const message = (err.message || '').toLowerCase();
-      const is_connection_error = message && (
+      const is_known_error_class = (
+        err instanceof ClientClosedError ||
+        err instanceof ClientOfflineError ||
+        err instanceof SocketClosedUnexpectedlyError ||
+        err instanceof ConnectionTimeoutError ||
+        err instanceof SocketTimeoutError ||
+        err instanceof TimeoutError
+      );
+      const is_connection_error = is_known_error_class || (message && (
         message.includes('connection') ||
         message.includes('econnrefused') ||
         message.includes('enotfound') ||
         message.includes('etimedout') ||
         message.includes('broken pipe') ||
         message.includes('write epipe')
-      );
+      ));
 
       if (is_connection_error && attempt < max_retries - 1) {
         this.ready = false;

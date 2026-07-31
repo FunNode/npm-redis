@@ -3,6 +3,14 @@ const chai = require('chai');
 const { expect } = chai;
 const sinon = require('sinon');
 const proxyquire = require('proxyquire');
+const {
+  ClientClosedError,
+  ClientOfflineError,
+  SocketClosedUnexpectedlyError,
+  ConnectionTimeoutError,
+  SocketTimeoutError,
+  TimeoutError
+} = require('redis');
 
 chai.use(require('sinon-chai'));
 chai.use(require('chai-as-promised'));
@@ -18,29 +26,30 @@ describe('Redis', function () {
 
   let sandbox;
   let on;
-  let quit;
+  let connectStub;
+  let close;
   let get;
   let set;
   let evalStub;
   let expire;
   let del;
-  let lrange;
+  let lRange;
   let llen;
   let lpop;
-  let rpush;
-  let ltrim;
-  let lrem;
-  let zrange;
-  let zrangebyscore;
-  let zremrangebyscore;
-  let zscore;
-  let zadd;
-  let zrem;
-  let sadd;
-  let smembers;
-  let spop;
-  let srem;
-  let flushdb;
+  let rPush;
+  let lTrim;
+  let lRem;
+  let zRange;
+  let zRangeByScore;
+  let zRemRangeByScore;
+  let zScore;
+  let zAdd;
+  let zRem;
+  let sAdd;
+  let sMembers;
+  let sPop;
+  let sRem;
+  let flushDb;
   let scan;
   let incr;
   let decr;
@@ -51,39 +60,48 @@ describe('Redis', function () {
   let redis;
 
   function inject () {
-    createClient = sandbox.stub().resolves({
+    createClient = sandbox.stub().returns({
       on,
-      quit,
+      connect: connectStub,
+      close,
       get,
       set,
       eval: evalStub,
       expire,
       del,
-      lrange,
+      lRange,
       llen,
       lpop,
-      rpush,
-      ltrim,
-      lrem,
-      zrange,
-      zrangebyscore,
-      zremrangebyscore,
-      zscore,
-      zadd,
-      zrem,
-      sadd,
-      smembers,
-      spop,
-      srem,
-      flushdb,
+      rPush,
+      lTrim,
+      lRem,
+      zRange,
+      zRangeByScore,
+      zRemRangeByScore,
+      zScore,
+      zAdd,
+      zRem,
+      sAdd,
+      sMembers,
+      sPop,
+      sRem,
+      flushDb,
       scan,
       incr,
       decr,
       ttl
     });
-    redislib = { createClient };
+    redislib = {
+      createClient,
+      ClientClosedError,
+      ClientOfflineError,
+      SocketClosedUnexpectedlyError,
+      ConnectionTimeoutError,
+      SocketTimeoutError,
+      TimeoutError
+    };
     Redis = proxyquire('../../index', {
-      'async-redis': redislib
+      redis: redislib
     });
     redis = new Redis(host, port, pass, db);
   }
@@ -91,30 +109,31 @@ describe('Redis', function () {
   beforeEach(async function () {
     sandbox = sinon.createSandbox();
     on = sandbox.stub();
-    quit = sandbox.stub().resolves();
+    connectStub = sandbox.stub().resolves();
+    close = sandbox.stub().resolves();
     get = sandbox.stub().resolves('get');
     set = sandbox.stub().resolves('set');
     evalStub = sandbox.stub().resolves('eval');
     expire = sandbox.stub().resolves('setex');
     del = sandbox.stub().resolves('del');
-    lrange = sandbox.stub().resolves('lrange');
+    lRange = sandbox.stub().resolves('lRange');
     llen = sandbox.stub().resolves('llen');
     lpop = sandbox.stub().resolves('lpop');
-    rpush = sandbox.stub().resolves('rpush');
-    ltrim = sandbox.stub().resolves('ltrim');
-    lrem = sandbox.stub().resolves('lrem');
-    zrange = sandbox.stub().resolves('zrange');
-    zrangebyscore = sandbox.stub().resolves('zrangebyscore');
-    zremrangebyscore = sandbox.stub().resolves('zremrangebyscore');
-    zscore = sandbox.stub().resolves('zscore');
-    zadd = sandbox.stub().resolves('zadd');
-    zrem = sandbox.stub().resolves('zrem');
-    sadd = sandbox.stub().resolves('sadd');
-    smembers = sandbox.stub().resolves('smembers');
-    spop = sandbox.stub().resolves('spop');
-    srem = sandbox.stub().resolves('srem');
-    flushdb = sandbox.stub().resolves('flushdb');
-    scan = sandbox.stub().resolves(['0', []]);
+    rPush = sandbox.stub().resolves('rPush');
+    lTrim = sandbox.stub().resolves('lTrim');
+    lRem = sandbox.stub().resolves('lRem');
+    zRange = sandbox.stub().resolves('zRange');
+    zRangeByScore = sandbox.stub().resolves('zRangeByScore');
+    zRemRangeByScore = sandbox.stub().resolves('zRemRangeByScore');
+    zScore = sandbox.stub().resolves('zScore');
+    zAdd = sandbox.stub().resolves('zAdd');
+    zRem = sandbox.stub().resolves('zRem');
+    sAdd = sandbox.stub().resolves('sAdd');
+    sMembers = sandbox.stub().resolves('sMembers');
+    sPop = sandbox.stub().resolves('sPop');
+    sRem = sandbox.stub().resolves('sRem');
+    flushDb = sandbox.stub().resolves('flushDb');
+    scan = sandbox.stub().resolves({ cursor: '0', keys: [] });
     incr = sandbox.stub().resolves('incr');
     decr = sandbox.stub().resolves('decr');
     ttl = sandbox.stub().resolves('ttl');
@@ -143,10 +162,9 @@ describe('Redis', function () {
   it('connects', async function () {
     await redis.connect();
     expect(createClient).to.have.been.calledWith(sinon.match({
-      host,
-      port,
+      socket: sinon.match({ host, port }),
       password: pass,
-      db
+      database: db
     }));
   });
 
@@ -194,11 +212,27 @@ describe('Redis', function () {
     expect(createClient.callCount).to.be.greaterThan(1);
   });
 
+  it('retries and recovers from a v6 ClientClosedError', async function () {
+    this.timeout(3000);
+    get = sandbox.stub();
+    get.onCall(0).rejects(new ClientClosedError());
+    get.onCall(1).resolves('get');
+    inject();
+    await redis.connect();
+    const readyCallback = on.args[0][1];
+    readyCallback();
+
+    const res = await redis.get(key);
+    expect(res).to.eql('get');
+    expect(get.callCount).to.eql(2);
+    expect(createClient.callCount).to.be.greaterThan(1);
+  });
+
   it('disconnects', async function () {
     await redis.connect();
     await redis.disconnect();
     expect(createClient).to.have.been.calledOnce;
-    expect(quit).to.have.been.calledOnce;
+    expect(close).to.have.been.calledOnce;
   });
 
   it('gets', async function () {
@@ -243,7 +277,7 @@ describe('Redis', function () {
   it('sets with expiration', async function () {
     await redis.connect();
     await redis.set(key, value, expiration);
-    expect(set).to.have.been.calledWith(key, value, 'EX', expiration);
+    expect(set).to.have.been.calledWith(key, value, { EX: expiration });
   });
 
   it('sets ignoring not numeric expiration', async function () {
@@ -270,7 +304,7 @@ describe('Redis', function () {
     await redis.connect();
     const res = await redis.set_nx(key, value, expiration);
     expect(res).to.equal(true);
-    expect(set).to.have.been.calledWith(key, value, 'EX', expiration, 'NX');
+    expect(set).to.have.been.calledWith(key, value, { EX: expiration, NX: true });
   });
 
   it('sets nx when key is already taken', async function () {
@@ -286,7 +320,7 @@ describe('Redis', function () {
     inject();
     await redis.connect();
     await redis.set_nx(key, value, expiration, 'PX');
-    expect(set).to.have.been.calledWith(key, value, 'PX', expiration, 'NX');
+    expect(set).to.have.been.calledWith(key, value, { PX: expiration, NX: true });
   });
 
   it('deletes if equals when value matches', async function () {
@@ -295,7 +329,7 @@ describe('Redis', function () {
     await redis.connect();
     const res = await redis.delete_if_equals(key, value);
     expect(res).to.equal(true);
-    expect(evalStub).to.have.been.calledWith(sinon.match.string, 1, key, value);
+    expect(evalStub).to.have.been.calledWith(sinon.match.string, { keys: [key], arguments: [value] });
   });
 
   it('does not delete if equals when value does not match', async function () {
@@ -309,92 +343,92 @@ describe('Redis', function () {
   it('gets list', async function () {
     await redis.connect();
     const res = await redis.get_list(key);
-    expect(res).to.eql('lrange');
-    expect(lrange).to.have.been.calledWith(key);
+    expect(res).to.eql('lRange');
+    expect(lRange).to.have.been.calledWith(key);
   });
 
   it('sets list', async function () {
     await redis.connect();
     await redis.set_list(key, value, false);
-    expect(rpush).to.have.been.calledWith(key, value);
-    expect(ltrim).to.not.have.been.called;
+    expect(rPush).to.have.been.calledWith(key, value);
+    expect(lTrim).to.not.have.been.called;
   });
 
   it('sets list with max length', async function () {
     await redis.connect();
     await redis.set_list(key, value, 10);
-    expect(rpush).to.have.been.calledWith(key, value);
-    expect(ltrim).to.have.been.calledWith(key, -10, -1);
+    expect(rPush).to.have.been.calledWith(key, value);
+    expect(lTrim).to.have.been.calledWith(key, -10, -1);
   });
 
   it('deletes list', async function () {
     await redis.connect();
     await redis.delete_list(key, value, 10);
-    expect(lrem).to.have.been.calledWith(key, 10, value);
+    expect(lRem).to.have.been.calledWith(key, 10, value);
   });
 
   it('gets zlist with default full range', async function () {
     await redis.connect();
     const res = await redis.get_zlist(key);
-    expect(res).to.eql('zrangebyscore');
-    expect(zrangebyscore).to.have.been.calledWith(key, '-inf', '+inf');
+    expect(res).to.eql('zRangeByScore');
+    expect(zRangeByScore).to.have.been.calledWith(key, '-inf', '+inf');
   });
 
   it('gets zlist within a score range', async function () {
     await redis.connect();
     await redis.get_zlist(key, 100, 200);
-    expect(zrangebyscore).to.have.been.calledWith(key, 100, 200);
+    expect(zRangeByScore).to.have.been.calledWith(key, 100, 200);
   });
 
   it('remove from zlist', async function () {
     await redis.connect();
     await redis.rem_from_zlist(key, 'min', 'max');
-    expect(zremrangebyscore).to.have.been.calledWith(key, 'min', 'max');
+    expect(zRemRangeByScore).to.have.been.calledWith(key, 'min', 'max');
   });
 
   it('gets zscore for a member', async function () {
     await redis.connect();
     const res = await redis.get_zscore(key, value);
-    expect(res).to.eql('zscore');
-    expect(zscore).to.have.been.calledWith(key, value);
+    expect(res).to.eql('zScore');
+    expect(zScore).to.have.been.calledWith(key, value);
   });
 
   it('sets zlist', async function () {
     await redis.connect();
     await redis.set_zlist(key, value, 'score');
-    expect(zadd).to.have.been.calledWith(key, 'score', value);
+    expect(zAdd).to.have.been.calledWith(key, { score: 'score', value });
   });
 
   it('deletes zlist', async function () {
     await redis.connect();
     await redis.delete_zlist(key, value);
-    expect(zrem).to.have.been.calledWith(key, value);
+    expect(zRem).to.have.been.calledWith(key, value);
   });
 
   it('sets set', async function () {
     await redis.connect();
     await redis.set_set(key, value);
-    expect(sadd).to.have.been.calledWith(key, value);
+    expect(sAdd).to.have.been.calledWith(key, value);
   });
 
   it('gets set', async function () {
     await redis.connect();
     const res = await redis.get_set(key);
-    expect(res).to.eql('smembers');
-    expect(smembers).to.have.been.calledWith(key);
+    expect(res).to.eql('sMembers');
+    expect(sMembers).to.have.been.calledWith(key);
   });
 
   it('pops set', async function () {
     await redis.connect();
     const res = await redis.pop_set(key);
-    expect(res).to.eql('spop');
-    expect(spop).to.have.been.calledWith(key);
+    expect(res).to.eql('sPop');
+    expect(sPop).to.have.been.calledWith(key);
   });
 
   it('deletes set', async function () {
     await redis.connect();
     await redis.delete_set(key, value);
-    expect(srem).to.have.been.calledWith(key, value);
+    expect(sRem).to.have.been.calledWith(key, value);
   });
 
   it('increments', async function () {
@@ -421,27 +455,27 @@ describe('Redis', function () {
   it('deletes all', async function () {
     await redis.connect();
     await redis.delete_all();
-    expect(flushdb).to.have.been.called;
+    expect(flushDb).to.have.been.called;
   });
 
   it('scans keys matching a pattern in a single page', async function () {
-    scan = sandbox.stub().resolves(['0', ['match:1', 'match:2']]);
+    scan = sandbox.stub().resolves({ cursor: '0', keys: ['match:1', 'match:2'] });
     inject();
     await redis.connect();
     const keys = await redis.scan_keys('match:*');
     expect(keys).to.eql(['match:1', 'match:2']);
-    expect(scan).to.have.been.calledWith('0', 'MATCH', 'match:*', 'COUNT', 100);
+    expect(scan).to.have.been.calledWith('0', { MATCH: 'match:*', COUNT: 100 });
   });
 
   it('scans keys across multiple pages until the cursor returns to 0', async function () {
     scan = sandbox.stub();
-    scan.onCall(0).resolves(['5', ['match:1']]);
-    scan.onCall(1).resolves(['0', ['match:2']]);
+    scan.onCall(0).resolves({ cursor: '5', keys: ['match:1'] });
+    scan.onCall(1).resolves({ cursor: '0', keys: ['match:2'] });
     inject();
     await redis.connect();
     const keys = await redis.scan_keys('match:*', 50);
     expect(keys).to.eql(['match:1', 'match:2']);
-    expect(scan.firstCall).to.have.been.calledWith('0', 'MATCH', 'match:*', 'COUNT', 50);
-    expect(scan.secondCall).to.have.been.calledWith('5', 'MATCH', 'match:*', 'COUNT', 50);
+    expect(scan.firstCall).to.have.been.calledWith('0', { MATCH: 'match:*', COUNT: 50 });
+    expect(scan.secondCall).to.have.been.calledWith('5', { MATCH: 'match:*', COUNT: 50 });
   });
 });

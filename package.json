@@ -1,6 +1,6 @@
 {
   "name": "@funnode/redis",
-  "version": "3.3.2",
+  "version": "4.0.0",
   "description": "A redis wrapper used by funnode repositories",
   "main": "index.js",
   "scripts": {
@@ -31,7 +31,7 @@
   ],
   "license": "ISC",
   "dependencies": {
-    "async-redis": "^2.0.0"
+    "redis": "^6.1.0"
   },
   "devDependencies": {
     "chai": "^4.2.0",

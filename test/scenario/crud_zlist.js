@@ -86,7 +86,7 @@ describe('Redis', () => {
 
     before(async function () {
       await redis.set_zlist(key, 'past-due', 100);
-      await redis.set_zlist(key, 'not-yet-due', 999999999999);
+      await redis.set_zlist(key, 'not-yet-due', Date.now() + (1000 * 60 * 60 * 24 * 365 * 10)); // 10 years out
 
       past_due = await redis.get_zlist(key, 0, Date.now());
       not_yet_due = await redis.get_zlist(key, Date.now(), '+inf');

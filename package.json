@@ -8,7 +8,7 @@
     "test": "./node_modules/.bin/mocha test/unit/*.js --timeout 2000 --exit",
     "test-scenario:dev": "REDIS_PORT=6379 ./node_modules/.bin/mocha test/scenario/*.js --watch --timeout 2000 --exit",
     "test-scenario": "./node_modules/.bin/mocha test/scenario/*.js --timeout 2000 --exit",
-    "coverage": "./node_modules/.bin/nyc --watch --reporter=lcov --reporter=text-lcov --report-dir=coverage --all npm run test",
+    "coverage": "./node_modules/.bin/nyc --reporter=lcov --reporter=text-lcov --report-dir=coverage --all npm run test",
     "lint": "eslint index.js test"
   },
   "repository": {
